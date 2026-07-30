@@ -1,34 +1,19 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, FolderOpen, FileSearch, Brain, Shield, Link2,
-  MapPin, Gavel, ScrollText, Bell, Users, Settings, User,
-  ChevronLeft, ChevronRight, ShieldCheck, LogOut, Menu,
+  LayoutDashboard, Users, ScrollText, LogOut, ChevronLeft, ChevronRight, Menu,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth, useApp } from '../../context/AppContext'
 import { ROLE_LABELS } from '../../types'
 import { PoliceLogo, AshokaEmblem } from '../brand/Logos'
 
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/cases', label: 'Case Management', icon: FolderOpen },
-  { path: '/evidence', label: 'Evidence', icon: FileSearch },
-  { path: '/ai-verification', label: 'AI Verification', icon: Brain },
-  { path: '/trust-score', label: 'Trust Score', icon: Shield },
-  { path: '/chain-of-custody', label: 'Chain of Custody', icon: Link2 },
-  { path: '/evidence-passport', label: 'Evidence Passport', icon: ShieldCheck },
-  { path: '/geolocation', label: 'Geolocation', icon: MapPin },
-  { path: '/blockchain', label: 'Blockchain', icon: Link2 },
-  { path: '/court-verification', label: 'Court Portal', icon: Gavel },
-  { path: '/audit-logs', label: 'Audit Logs', icon: ScrollText },
-  { path: '/notifications', label: 'Notifications', icon: Bell },
-  { path: '/access-control', label: 'Access Control', icon: Shield },
-  { path: '/users', label: 'User Management', icon: Users },
-  { path: '/security', label: 'Security Settings', icon: Settings },
-  { path: '/profile', label: 'My Profile', icon: User },
+const adminNavItems = [
+  { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/admin/officers', label: 'Officer Management', icon: Users },
+  { path: '/admin/activity-logs', label: 'Activity Logs', icon: ScrollText },
 ]
 
-export function Sidebar() {
+function AdminSidebar() {
   const location = useLocation()
   const { sidebarOpen, toggleSidebar } = useApp()
 
@@ -49,15 +34,15 @@ export function Sidebar() {
           {sidebarOpen && (
             <div className="overflow-hidden min-w-0">
               <h1 className="text-sm font-bold text-navy-900 leading-tight">Evidence Portal</h1>
-              <p className="text-[10px] text-saffron-600 font-semibold font-hindi truncate">छत्तीसगढ़ पुलिस</p>
+              <p className="text-[10px] text-saffron-600 font-semibold font-hindi truncate">प्रशासक पोर्टल</p>
             </div>
           )}
         </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/')
+        {adminNavItems.map((item) => {
+          const isActive = location.pathname === item.path
           const Icon = item.icon
           return (
             <Link
@@ -82,7 +67,7 @@ export function Sidebar() {
         <div className="px-3 py-3 border-t border-navy-100 flex items-center gap-2">
           <AshokaEmblem size={28} className="opacity-80" />
           <p className="text-[9px] text-navy-700 leading-snug">
-            सत्यमेव जयते
+            Administrator Portal
             <br />
             Digital Evidence System
           </p>
@@ -99,9 +84,15 @@ export function Sidebar() {
   )
 }
 
-export function TopBar() {
-  const { user, logout } = useAuth()
-  const { unreadCount, sidebarOpen, toggleSidebar } = useApp()
+function AdminTopBar() {
+  const { user, adminLogout } = useAuth()
+  const { sidebarOpen, toggleSidebar } = useApp()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    await adminLogout()
+    navigate('/admin-login')
+  }
 
   return (
     <header
@@ -119,42 +110,22 @@ export function TopBar() {
           </button>
           <AshokaEmblem size={32} className="hidden sm:block flex-shrink-0" />
           <div className="hidden md:block min-w-0">
-            <p className="text-sm font-semibold text-navy-900 truncate">
-              Digital Evidence Trust Platform
-            </p>
-            <p className="text-[11px] text-navy-700 truncate font-hindi">
-              छत्तीसगढ़ पुलिस · Forensics · Courts
-            </p>
-          </div>
-          <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-md bg-green-50 border border-green-200">
-            <div className="w-1.5 h-1.5 rounded-full bg-india-green" />
-            <span className="text-[10px] text-india-green font-semibold">System Online</span>
+            <p className="text-sm font-semibold text-navy-900 truncate">Administrator Dashboard</p>
+            <p className="text-[11px] text-navy-700 truncate font-hindi">प्रशासक · Officer & Activity Management</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            to="/notifications"
-            className="relative p-2 rounded-lg hover:bg-navy-50 text-navy-700 hover:text-navy-800 transition-colors"
-          >
-            <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-saffron-500 text-white text-[10px] font-bold flex items-center justify-center">
-                {unreadCount}
-              </span>
-            )}
-          </Link>
-
           <div className="flex items-center gap-2.5 pl-3 border-l border-navy-100">
             <div className="hidden sm:block text-right">
               <p className="text-sm font-semibold text-navy-900 leading-tight">{user?.name}</p>
               <p className="text-[10px] text-saffron-600 font-medium">{user ? ROLE_LABELS[user.role] : ''}</p>
             </div>
             <div className="w-9 h-9 rounded-full bg-navy-900 flex items-center justify-center text-sm font-bold text-white">
-              {user?.name?.charAt(0) || 'U'}
+              {user?.name?.charAt(0) || 'A'}
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="p-2 rounded-lg hover:bg-red-50 text-navy-700 hover:text-red-600 transition-colors"
               title="Logout"
             >
@@ -167,12 +138,11 @@ export function TopBar() {
   )
 }
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { sidebarOpen } = useApp()
 
   return (
     <div className="min-h-screen bg-navy-50 relative">
-      {/* Subtle Ashoka watermark on all authenticated pages */}
       <div
         className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center overflow-hidden"
         aria-hidden
@@ -180,8 +150,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <AshokaEmblem size={640} className="opacity-[0.035] ml-32" />
       </div>
 
-      <Sidebar />
-      <TopBar />
+      <AdminSidebar />
+      <AdminTopBar />
       <main
         className={cn(
           'relative z-10 min-h-screen transition-all duration-300 pt-20 px-4 sm:px-6 pb-8',

@@ -6,6 +6,7 @@ import jwt, { type JwtPayload } from 'jsonwebtoken'
 import { PrismaClient, UserRole } from '@prisma/client'
 import multer from 'multer'
 import crypto from 'crypto'
+import { ACTIVITY, logActivity } from './activityLog.js'
 
 const required = ['DATABASE_URL', 'JWT_SECRET'] as const
 for (const key of required) {
@@ -25,19 +26,50 @@ type AuthRequest = Request & { auth?: { userId: string; role: UserRole } }
 function publicUser(user: {
   id: string; username: string; email: string; name: string; role: UserRole
   department: string; badgeNumber: string; isActive: boolean; mustChangePassword: boolean
+  lastLoginAt?: Date | null; createdAt?: Date
 }) {
-  return user
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    department: user.department,
+    badgeNumber: user.badgeNumber,
+    isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
+    lastLogin: user.lastLoginAt?.toISOString() ?? undefined,
+    createdAt: user.createdAt?.toISOString(),
+  }
 }
 
-function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
-  const token = req.header('Authorization')?.replace(/^Bearer\s+/i, '')
-  if (!token) return res.status(401).json({ message: 'Authentication required.' })
+async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.header('Authorization')
+  const token = authHeader?.replace(/^Bearer\s+/i, '')?.trim()
+
+  if (!token) {
+    console.warn(`[AUTH 401] Path: ${req.method} ${req.path} - Missing or malformed Authorization header. Header value: "${authHeader || ''}"`)
+    return res.status(401).json({ message: 'Authentication required.' })
+  }
+
   try {
     const payload = jwt.verify(token, jwtSecret) as JwtPayload
-    if (typeof payload.sub !== 'string' || typeof payload.role !== 'string') throw new Error('Invalid token')
-    req.auth = { userId: payload.sub, role: payload.role as UserRole }
+    if (typeof payload.sub !== 'string' || typeof payload.role !== 'string') {
+      console.warn(`[AUTH 401] Path: ${req.method} ${req.path} - Token payload missing sub or role properties.`)
+      return res.status(401).json({ message: 'Your session is invalid or has expired.' })
+    }
+
+    const dbUser = await prisma.user.findUnique({ where: { id: payload.sub } })
+    if (!dbUser || !dbUser.isActive) {
+      console.warn(`[AUTH 401] Path: ${req.method} ${req.path} - User ${payload.sub} not found or inactive in database.`)
+      return res.status(401).json({ message: 'Your session is invalid or account is inactive.' })
+    }
+
+    req.auth = { userId: payload.sub, role: dbUser.role }
+    console.log(`[AUTH 200] Path: ${req.method} ${req.path} - Authenticated user: ${dbUser.username} (${dbUser.role})`)
     next()
-  } catch {
+  } catch (err: any) {
+    console.warn(`[AUTH 401] Path: ${req.method} ${req.path} - JWT verification failed (${err.name}): ${err.message}`)
     return res.status(401).json({ message: 'Your session is invalid or has expired.' })
   }
 }
@@ -70,6 +102,21 @@ async function loginForPortal(req: Request, res: Response, next: NextFunction, p
       return res.status(403).json({ message: 'Please sign in through the Judge Portal.' })
     }
 
+    if (portal === 'officer' && user.role === UserRole.administrator) {
+      return res.status(403).json({ message: 'Please sign in through Administrator Access.' })
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+    if (portal === 'officer') {
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.OFFICER_LOGIN,
+        username: user.username,
+        role: user.role,
+        userId: user.id,
+        details: 'Officer Portal login',
+      })
+    }
+
     const token = jwt.sign({ role: user.role }, jwtSecret, { subject: user.id, expiresIn: '24h' })
     return res.json({ token, user: publicUser(user) })
   } catch (error) { next(error) }
@@ -83,6 +130,251 @@ app.get('/api/auth/me', authenticate, async (req: AuthRequest, res, next) => {
     const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
     if (!user || !user.isActive) return res.status(401).json({ message: 'Account is inactive.' })
     return res.json({ user: publicUser(user) })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/auth/logout', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    if (user && user.role !== UserRole.administrator && user.role !== UserRole.judge) {
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.OFFICER_LOGOUT,
+        username: user.username,
+        role: user.role,
+        userId: user.id,
+      })
+    }
+    return res.json({ message: 'Logged out.' })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/admin/login', async (req, res, next) => {
+  try {
+    const identifier = typeof req.body.identifier === 'string' ? req.body.identifier.trim().toLowerCase() : ''
+    const password = typeof req.body.password === 'string' ? req.body.password : ''
+    if (!identifier || !password) return res.status(400).json({ message: 'Administrator ID and password are required.' })
+
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ email: identifier }, { username: identifier }] },
+    })
+    const isValid = user ? await bcrypt.compare(password, user.passwordHash) : false
+    if (!user || !user.isActive || !isValid || user.role !== UserRole.administrator) {
+      return res.status(401).json({ message: 'Invalid administrator credentials.' })
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.ADMINISTRATOR_LOGIN,
+      username: user.username,
+      role: user.role,
+      userId: user.id,
+    })
+
+    const token = jwt.sign({ role: user.role }, jwtSecret, { subject: user.id, expiresIn: '24h' })
+    return res.json({ token, user: publicUser(user) })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/admin/logout', authenticate, administratorsOnly, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    if (user) {
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.ADMINISTRATOR_LOGOUT,
+        username: user.username,
+        role: user.role,
+        userId: user.id,
+      })
+    }
+    return res.json({ message: 'Administrator logged out.' })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/admin/me', authenticate, administratorsOnly, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    if (!user || !user.isActive) return res.status(401).json({ message: 'Account is inactive.' })
+    return res.json({ user: publicUser(user) })
+  } catch (error) { next(error) }
+})
+
+const officerRoles: UserRole[] = [UserRole.police_officer, UserRole.investigating_officer, UserRole.forensic_expert]
+
+app.get('/api/admin/officers', authenticate, administratorsOnly, async (_req, res, next) => {
+  try {
+    const officers = await prisma.user.findMany({
+      where: { role: { in: officerRoles } },
+      orderBy: { createdAt: 'desc' },
+    })
+    return res.json({ officers: officers.map(publicUser) })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/admin/officers', authenticate, administratorsOnly, async (req: AuthRequest, res, next) => {
+  try {
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : ''
+    const username = typeof req.body.username === 'string' ? req.body.username.trim().toLowerCase() : ''
+    const department = typeof req.body.department === 'string' ? req.body.department.trim() : ''
+    const badgeNumber = typeof req.body.badgeNumber === 'string' ? req.body.badgeNumber.trim() : ''
+    const password = typeof req.body.password === 'string' ? req.body.password : ''
+    const role = typeof req.body.role === 'string' && officerRoles.includes(req.body.role as UserRole)
+      ? (req.body.role as UserRole)
+      : UserRole.police_officer
+
+    if (![name, username, department, badgeNumber, password].every(Boolean)) {
+      return res.status(400).json({ message: 'All officer details and a temporary password are required.' })
+    }
+    if (password.length < 12) return res.status(400).json({ message: 'Password must have at least 12 characters.' })
+
+    const email = `${username}@police.gov.in`
+    const user = await prisma.user.create({
+      data: {
+        email,
+        username,
+        name,
+        role,
+        department,
+        badgeNumber,
+        passwordHash: await bcrypt.hash(password, 12),
+        mustChangePassword: true,
+        createdById: req.auth!.userId,
+      },
+    })
+
+    const admin = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.OFFICER_CREATED,
+      username: admin?.username ?? 'administrator',
+      role: UserRole.administrator,
+      userId: req.auth!.userId,
+      details: `Created officer ${username}`,
+    })
+
+    return res.status(201).json({ officer: publicUser(user) })
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error && 'code' in error && error.code === 'P2002') {
+      return res.status(409).json({ message: 'That Officer ID is already registered.' })
+    }
+    next(error)
+  }
+})
+
+app.patch('/api/admin/officers/:id', authenticate, administratorsOnly, async (req: AuthRequest, res, next) => {
+  try {
+    const userId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!userId) return res.status(400).json({ message: 'Officer ID is required.' })
+
+    const existing = await prisma.user.findUnique({ where: { id: userId } })
+    if (!existing || !officerRoles.includes(existing.role)) {
+      return res.status(404).json({ message: 'Officer not found.' })
+    }
+
+    const data: Record<string, string | UserRole> = {}
+    if (typeof req.body.name === 'string' && req.body.name.trim()) data.name = req.body.name.trim()
+    if (typeof req.body.department === 'string' && req.body.department.trim()) data.department = req.body.department.trim()
+    if (typeof req.body.badgeNumber === 'string' && req.body.badgeNumber.trim()) data.badgeNumber = req.body.badgeNumber.trim()
+    if (typeof req.body.role === 'string' && officerRoles.includes(req.body.role as UserRole)) data.role = req.body.role as UserRole
+
+    if (Object.keys(data).length === 0) return res.status(400).json({ message: 'No valid fields to update.' })
+
+    const user = await prisma.user.update({ where: { id: userId }, data })
+    const admin = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.OFFICER_UPDATED,
+      username: admin?.username ?? 'administrator',
+      role: UserRole.administrator,
+      userId: req.auth!.userId,
+      details: `Updated officer ${existing.username}`,
+    })
+
+    return res.json({ officer: publicUser(user) })
+  } catch (error) { next(error) }
+})
+
+app.patch('/api/admin/officers/:id/status', authenticate, administratorsOnly, async (req: AuthRequest, res, next) => {
+  try {
+    if (typeof req.body.isActive !== 'boolean') return res.status(400).json({ message: 'isActive must be true or false.' })
+    const userId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!userId) return res.status(400).json({ message: 'Officer ID is required.' })
+
+    const existing = await prisma.user.findUnique({ where: { id: userId } })
+    if (!existing || !officerRoles.includes(existing.role)) {
+      return res.status(404).json({ message: 'Officer not found.' })
+    }
+
+    const user = await prisma.user.update({ where: { id: userId }, data: { isActive: req.body.isActive } })
+    const admin = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.OFFICER_UPDATED,
+      username: admin?.username ?? 'administrator',
+      role: UserRole.administrator,
+      userId: req.auth!.userId,
+      details: `${req.body.isActive ? 'Activated' : 'Deactivated'} officer ${existing.username}`,
+    })
+
+    return res.json({ officer: publicUser(user) })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/admin/activity-logs', authenticate, administratorsOnly, async (_req, res, next) => {
+  try {
+    const logs = await prisma.activityLog.findMany({ orderBy: { createdAt: 'desc' }, take: 500 })
+    return res.json({
+      logs: logs.map((log) => ({
+        id: log.id,
+        activity: log.activity,
+        username: log.username,
+        role: log.role,
+        ipAddress: log.ipAddress,
+        details: log.details,
+        timestamp: log.createdAt.toISOString(),
+      })),
+    })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/admin/activity-logs/export', authenticate, administratorsOnly, async (_req, res, next) => {
+  try {
+    const logs = await prisma.activityLog.findMany({ orderBy: { createdAt: 'desc' } })
+    const header = 'Date,Time,Username,Role,Activity,IP Address,Details'
+    const rows = logs.map((log) => {
+      const date = log.createdAt.toLocaleDateString('en-IN')
+      const time = log.createdAt.toLocaleTimeString('en-IN')
+      const escape = (value: string) => `"${value.replace(/"/g, '""')}"`
+      return [
+        escape(date),
+        escape(time),
+        escape(log.username),
+        escape(log.role),
+        escape(log.activity),
+        escape(log.ipAddress),
+        escape(log.details ?? ''),
+      ].join(',')
+    })
+    const csv = [header, ...rows].join('\n')
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', 'attachment; filename="activity-logs.csv"')
+    return res.send(csv)
+  } catch (error) { next(error) }
+})
+
+app.post('/api/admin/activity-logs', authenticate, administratorsOnly, async (req: AuthRequest, res, next) => {
+  try {
+    const activity = typeof req.body.activity === 'string' ? req.body.activity.trim() : ''
+    const details = typeof req.body.details === 'string' ? req.body.details.trim() : undefined
+    if (!activity) return res.status(400).json({ message: 'Activity is required.' })
+
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    if (!user) return res.status(401).json({ message: 'Account not found.' })
+
+    await logActivity(prisma, req, {
+      activity,
+      username: user.username,
+      role: user.role,
+      userId: user.id,
+      details,
+    })
+    return res.status(201).json({ message: 'Activity logged.' })
   } catch (error) { next(error) }
 })
 
@@ -121,11 +413,19 @@ async function analyzeImageWithSightengine(file: Express.Multer.File): Promise<S
     imageQuality: 0, riskScore: 0, recommendation: 'needs_manual_review',
   })
 
-  if (!file.mimetype.startsWith('image/')) return unavailable('Sightengine live analysis is currently available for image evidence only.')
+  const isImage = file.mimetype.startsWith('image/') || Boolean(file.originalname.match(/\.(png|jpe?g|webp|gif|bmp|svg)$/i))
+  if (!isImage) return unavailable('Sightengine live analysis is currently available for image evidence only.')
   if (!apiUser || !apiSecret) return unavailable('Sightengine is not configured. Add SIGHTENGINE_API_USER and SIGHTENGINE_API_SECRET to the server .env file.')
 
+  let mimeType = file.mimetype
+  if (!mimeType || mimeType === 'application/octet-stream') {
+    if (file.originalname.match(/\.png$/i)) mimeType = 'image/png'
+    else if (file.originalname.match(/\.jpe?g$/i)) mimeType = 'image/jpeg'
+    else mimeType = 'image/png'
+  }
+
   const body = new FormData()
-  body.append('media', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname)
+  body.append('media', new Blob([new Uint8Array(file.buffer)], { type: mimeType }), file.originalname)
   body.append('models', 'genai,deepfake,weapon,gore-2.0,quality')
   body.append('api_user', apiUser)
   body.append('api_secret', apiSecret)
@@ -168,22 +468,48 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
     }
 
     const aiAnalysis = await analyzeImageWithSightengine(req.file)
+    const uploader = req.auth?.userId
+      ? await prisma.user.findUnique({ where: { id: req.auth.userId } })
+      : null
+
+    const logUpload = async (fileName: string) => {
+      if (!uploader) return
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.EVIDENCE_UPLOADED,
+        username: uploader.username,
+        role: uploader.role,
+        userId: uploader.id,
+        details: fileName,
+      })
+    }
 
     const apiKey = process.env.PINATA_API_KEY
     const apiSecret = process.env.PINATA_API_SECRET
+    const jwt = process.env.PINATA_JWT
+    const hasJwt = Boolean(jwt && !jwt.includes('your_pinata_jwt_here') && jwt.trim() !== '')
+    const hasKeys = Boolean(apiKey && apiSecret && !apiSecret.includes('your_pinata_api_secret_here') && apiSecret.trim() !== '')
 
-    // Check if real Pinata keys are configured
-    if (!apiKey || !apiSecret || apiSecret.includes('your_pinata_api_secret_here') || apiSecret === '') {
+    console.log("PINATA_JWT exists:", !!process.env.PINATA_JWT);
+    console.log("PINATA_API_KEY exists:", !!process.env.PINATA_API_KEY);
+    console.log("PINATA_API_SECRET exists:", !!process.env.PINATA_API_SECRET);
+
+    console.log("hasJwt =", hasJwt);
+    console.log("hasKeys =", hasKeys);
+
+    // Check if real Pinata keys or JWT are configured
+    if (!hasJwt && !hasKeys) {
       // Fallback: If no secret is configured, generate a mock but valid-looking IPFS CID
       const mockCid = 'Qm' + Array.from({ length: 44 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
       const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
+      await logUpload(req.file.originalname)
       return res.json({
         ipfsCid: mockCid,
+        ipfsGatewayUrl: `https://gateway.pinata.cloud/ipfs/${mockCid}`,
         sha256: fileHash,
         fileName: req.file.originalname,
         fileSize: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
         aiAnalysis,
-        message: `Mock IPFS upload (configure PINATA_API_SECRET in .env for real upload). ${aiAnalysis.message}`
+        message: `Mock IPFS upload (configure PINATA_API_SECRET or PINATA_JWT in .env for real upload). ${aiAnalysis.message}`
       })
     }
 
@@ -196,16 +522,22 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
       name: req.file.originalname,
       keyvalues: {
         uploadedById: req.auth?.userId || 'unknown',
+        system: 'TrustChain Evidence Portal',
       }
     })
     formData.append('pinataMetadata', metadata)
 
+    const pinataHeaders: Record<string, string> = {}
+    if (hasJwt && jwt) {
+      pinataHeaders['Authorization'] = `Bearer ${jwt}`
+    } else if (apiKey && apiSecret) {
+      pinataHeaders['pinata_api_key'] = apiKey
+      pinataHeaders['pinata_secret_api_key'] = apiSecret
+    }
+
     const pinataResponse = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
       method: 'POST',
-      headers: {
-        'pinata_api_key': apiKey,
-        'pinata_secret_api_key': apiSecret,
-      },
+      headers: pinataHeaders,
       body: formData
     })
 
@@ -216,9 +548,11 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
 
     const result = (await pinataResponse.json()) as { IpfsHash: string }
     const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
+    await logUpload(req.file.originalname)
 
     return res.json({
       ipfsCid: result.IpfsHash,
+      ipfsGatewayUrl: `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`,
       sha256: fileHash,
       fileName: req.file.originalname,
       fileSize: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,

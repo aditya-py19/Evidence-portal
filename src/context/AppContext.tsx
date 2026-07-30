@@ -5,8 +5,11 @@ import { notifications as initialNotifications } from '../data/mockData'
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
+  isAdmin: boolean
   login: (identifier: string, password: string, portal?: 'officer' | 'judge') => Promise<{ success: boolean; message?: string }>
+  adminLogin: (identifier: string, password: string) => Promise<{ success: boolean; message?: string }>
   logout: () => void
+  adminLogout: () => Promise<void>
 }
 
 interface AppContextType {
@@ -47,14 +50,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const adminLogin = useCallback(async (identifier: string, password: string) => {
+    try {
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password }),
+      })
+      const body = await response.json() as { token?: string; user?: User; message?: string }
+      if (!response.ok || !body.token || !body.user) return { success: false, message: body.message ?? 'Admin login failed.' }
+
+      const loggedInUser: User = { ...body.user, assignedCases: 0, evidenceUploaded: 0 }
+      localStorage.setItem('evidence-portal-token', body.token)
+      localStorage.setItem('evidence-portal-user', JSON.stringify(loggedInUser))
+      setUser(loggedInUser)
+      return { success: true }
+    } catch {
+      return { success: false, message: 'Unable to reach the admin login server.' }
+    }
+  }, [])
+
   const logout = useCallback(() => {
     localStorage.removeItem('evidence-portal-token')
     localStorage.removeItem('evidence-portal-user')
     setUser(null)
   }, [])
 
+  const adminLogout = useCallback(async () => {
+    localStorage.removeItem('evidence-portal-token')
+    localStorage.removeItem('evidence-portal-user')
+    setUser(null)
+  }, [])
+
+  const isAdmin = user?.role === 'administrator'
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isAdmin, login, adminLogin, logout, adminLogout }}>
       {children}
     </AuthContext.Provider>
   )

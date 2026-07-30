@@ -16,16 +16,33 @@ enum UserRole {
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  username           String   @unique
-  email              String   @unique
+  id                 String        @id @default(cuid())
+  username           String        @unique
+  email              String        @unique
   name               String
   role               UserRole
   department         String
   badgeNumber        String
   passwordHash       String
-  isActive           Boolean  @default(true)
-  mustChangePassword Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  isActive           Boolean       @default(true)
+  mustChangePassword Boolean       @default(false)
+  lastLoginAt        DateTime?
+  createdById        String?
+  createdBy          User?         @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers       User[]        @relation("UserCreatedBy")
+  activityLogs       ActivityLog[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  activity  String
+  username  String
+  role      UserRole
+  ipAddress String   @default("unknown")
+  details   String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
 }

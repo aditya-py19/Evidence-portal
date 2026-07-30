@@ -68,7 +68,14 @@ export default function EvidencePage() {
 
       setUploadProgress(70)
       if (!response.ok) {
-        const errorData = await response.json() as { message?: string }
+        const errorData = await response.json().catch(() => ({})) as { message?: string }
+        if (response.status === 401) {
+          localStorage.removeItem('evidence-portal-token')
+          localStorage.removeItem('evidence-portal-user')
+          alert('Your session has expired or is invalid. Please sign in again.')
+          window.location.href = '/login'
+          throw new Error('Session expired. Please sign in again.')
+        }
         throw new Error(errorData.message || 'Failed to upload to IPFS.')
       }
 
@@ -187,7 +194,17 @@ export default function EvidencePage() {
             type="file"
             className="hidden"
             id="file-upload"
-            onChange={(e) => e.target.files?.[0] && setSelectedFile(e.target.files[0])}
+            accept="image/*,video/*,audio/*,.png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) {
+                console.log("Selected:", file.name)
+                console.log("Type:", file.type)
+                console.log("Size:", file.size)
+                setSelectedFile(file)
+              }
+              e.target.value = ''
+            }}
           />
           <label htmlFor="file-upload" className="cyber-btn-secondary mt-4 inline-flex cursor-pointer">
             Browse Files
@@ -204,7 +221,7 @@ export default function EvidencePage() {
                   <p className="text-xs text-navy-700">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedFile(null)} className="text-navy-700 hover:text-navy-900">
+              <button onClick={() => setSelectedFile(null)} className="text-navy-700 hover:text-navy-900" title="Remove file">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -219,7 +236,12 @@ export default function EvidencePage() {
                 </div>
               </div>
             ) : (
-              <button onClick={handleUpload} className="cyber-btn-primary w-full">
+              <button
+                type="button"
+                onClick={handleUpload}
+                disabled={uploading || !selectedFile}
+                className="cyber-btn-primary w-full"
+              >
                 <Upload className="w-4 h-4" /> Upload to Secure Storage
               </button>
             )}

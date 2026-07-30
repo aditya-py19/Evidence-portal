@@ -1,4 +1,6 @@
-﻿interface LogoProps {
+import { cn } from '../../lib/utils'
+
+interface LogoProps {
   className?: string
   size?: number
 }
@@ -25,7 +27,7 @@ export function PoliceLogo({ className = '', size = 88 }: LogoProps) {
       alt="Chhattisgarh Police"
       width={size}
       height={size}
-      className={`object-contain ${className}`}
+      className={cn('object-contain max-h-full max-w-full select-none', className)}
       draggable={false}
     />
   )
