@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AppContext'
 import { AppLayout } from './components/layout/AppLayout'
+import { AdminLayout } from './components/layout/AdminLayout'
 import LoginPage from './pages/LoginPage'
 import PortalSelectionPage from './pages/PortalSelectionPage'
 import DashboardPage from './pages/DashboardPage'
@@ -19,6 +20,17 @@ import AccessControlPage from './pages/AccessControlPage'
 import UsersPage from './pages/UsersPage'
 import SecurityPage from './pages/SecurityPage'
 import ProfilePage from './pages/ProfilePage'
+import AdminLoginPage from './pages/admin/AdminLoginPage'
+import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import AdminOfficersPage from './pages/admin/AdminOfficersPage'
+import AdminActivityLogsPage from './pages/admin/AdminActivityLogsPage'
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isAdmin } = useAuth()
+  if (!isAuthenticated) return <Navigate to="/admin-login" replace />
+  if (!isAdmin) return <Navigate to="/dashboard" replace />
+  return <AdminLayout>{children}</AdminLayout>
+}
 
 function JudgeRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
@@ -27,19 +39,24 @@ function JudgeRoute({ children }: { children: React.ReactNode }) {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isAdmin } = useAuth()
   if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (isAdmin) return <Navigate to="/admin/dashboard" replace />
   return <AppLayout>{children}</AppLayout>
 }
 
 export default function App() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isAdmin } = useAuth()
 
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <PortalSelectionPage />} />
-      <Route path="/officer-login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage portal="officer" />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to={isAdmin ? "/admin/dashboard" : "/dashboard"} replace /> : <PortalSelectionPage />} />
+      <Route path="/officer-login" element={isAuthenticated ? <Navigate to={isAdmin ? "/admin/dashboard" : "/dashboard"} replace /> : <LoginPage portal="officer" />} />
       <Route path="/judge-login" element={isAuthenticated ? <Navigate to="/judge-portal" replace /> : <LoginPage portal="judge" />} />
+      <Route path="/admin-login" element={isAuthenticated && isAdmin ? <Navigate to="/admin/dashboard" replace /> : <AdminLoginPage />} />
+      <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+      <Route path="/admin/officers" element={<AdminRoute><AdminOfficersPage /></AdminRoute>} />
+      <Route path="/admin/activity-logs" element={<AdminRoute><AdminActivityLogsPage /></AdminRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/cases" element={<ProtectedRoute><CasesPage /></ProtectedRoute>} />
       <Route path="/evidence" element={<ProtectedRoute><EvidencePage /></ProtectedRoute>} />
@@ -63,7 +80,7 @@ export default function App() {
       <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
       <Route path="/security" element={<ProtectedRoute><SecurityPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={isAuthenticated ? (isAdmin ? '/admin/dashboard' : '/dashboard') : '/login'} replace />} />
     </Routes>
   )
 }

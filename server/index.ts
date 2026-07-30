@@ -102,10 +102,6 @@ async function loginForPortal(req: Request, res: Response, next: NextFunction, p
       return res.status(403).json({ message: 'Please sign in through the Judge Portal.' })
     }
 
-    if (portal === 'officer' && user.role === UserRole.administrator) {
-      return res.status(403).json({ message: 'Please sign in through Administrator Access.' })
-    }
-
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
     if (portal === 'officer') {
       await logActivity(prisma, req, {
@@ -483,37 +479,28 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
       })
     }
 
-    const apiKey = process.env.PINATA_API_KEY
-    const apiSecret = process.env.PINATA_API_SECRET
-    const jwt = process.env.PINATA_JWT
-    const hasJwt = Boolean(jwt && !jwt.includes('your_pinata_jwt_here') && jwt.trim() !== '')
-    const hasKeys = Boolean(apiKey && apiSecret && !apiSecret.includes('your_pinata_api_secret_here') && apiSecret.trim() !== '')
+    const clean = (s?: string) => (s ? s.replace(/^["']|["']$/g, '').trim() : '')
+    const apiKey = clean(process.env.PINATA_API_KEY)
+    const apiSecret = clean(process.env.PINATA_API_SECRET)
+    const jwt = clean(process.env.PINATA_JWT)
 
-    console.log("PINATA_JWT exists:", !!process.env.PINATA_JWT);
-    console.log("PINATA_API_KEY exists:", !!process.env.PINATA_API_KEY);
-    console.log("PINATA_API_SECRET exists:", !!process.env.PINATA_API_SECRET);
+    console.log("apiSecret.length =", apiSecret.length);
+    console.log("apiSecret === 'your_pinata_api_secret_here' =", apiSecret === 'your_pinata_api_secret_here');
+    console.log("apiSecret.includes('your_pinata_api_secret_here') =", apiSecret.includes('your_pinata_api_secret_here'));
+    console.log("apiSecret.trim() === '' =", apiSecret.trim() === '');
+    console.log("apiKey === 'your_pinata_api_key_here' =", apiKey === 'your_pinata_api_key_here');
 
-    console.log("hasJwt =", hasJwt);
-    console.log("hasKeys =", hasKeys);
-
-    // Check if real Pinata keys or JWT are configured
-    if (!hasJwt && !hasKeys) {
-      // Fallback: If no secret is configured, generate a mock but valid-looking IPFS CID
-      const mockCid = 'Qm' + Array.from({ length: 44 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-      const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
-      await logUpload(req.file.originalname)
-      return res.json({
-        ipfsCid: mockCid,
-        ipfsGatewayUrl: `https://gateway.pinata.cloud/ipfs/${mockCid}`,
-        sha256: fileHash,
-        fileName: req.file.originalname,
-        fileSize: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
-        aiAnalysis,
-        message: `Mock IPFS upload (configure PINATA_API_SECRET or PINATA_JWT in .env for real upload). ${aiAnalysis.message}`
-      })
+    const pinataHeaders: Record<string, string> = {}
+    if (jwt) {
+      pinataHeaders['Authorization'] = `Bearer ${jwt}`
+    } else if (apiKey && apiSecret) {
+      pinataHeaders['pinata_api_key'] = apiKey
+      pinataHeaders['pinata_secret_api_key'] = apiSecret
+    } else {
+      throw new Error('Pinata credentials missing. Please set PINATA_JWT or PINATA_API_KEY and PINATA_API_SECRET in environment.')
     }
 
-    // Prepare FormData for Pinata API
+    // Prepare FormData for real Pinata API
     const formData = new FormData()
     const blob = new Blob([new Uint8Array(req.file.buffer)], { type: req.file.mimetype })
     formData.append('file', blob, req.file.originalname)
@@ -526,14 +513,6 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
       }
     })
     formData.append('pinataMetadata', metadata)
-
-    const pinataHeaders: Record<string, string> = {}
-    if (hasJwt && jwt) {
-      pinataHeaders['Authorization'] = `Bearer ${jwt}`
-    } else if (apiKey && apiSecret) {
-      pinataHeaders['pinata_api_key'] = apiKey
-      pinataHeaders['pinata_secret_api_key'] = apiSecret
-    }
 
     const pinataResponse = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
       method: 'POST',

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, User, Shield } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AppContext'
@@ -104,7 +104,16 @@ export default function LoginPage({ portal = 'officer' }: { portal?: 'officer' |
                   <p className="text-xs text-navy-700">{isJudge ? 'Use your court-issued Judge Portal credentials.' : 'Your account role is assigned by the portal administrator.'}</p>
                 </div>
 
-                {error && <p className="text-sm text-red-600">{error}</p>}
+                {error && (
+                  <div className="space-y-1 text-center">
+                    <p className="text-sm text-red-600">{error}</p>
+                    {error.includes('Administrator Access') && (
+                      <Link to="/admin-login" className="inline-block text-xs font-semibold text-purple-700 hover:underline">
+                        → Click here to sign in as Administrator
+                      </Link>
+                    )}
+                  </div>
+                )}
 
                 <button type="submit" className="cyber-btn-primary w-full">
                   <Shield className="w-4 h-4" />
