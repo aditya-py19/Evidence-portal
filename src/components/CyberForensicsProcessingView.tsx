@@ -4,6 +4,7 @@ import {
   CheckCircle, Loader2, FileText, Database, ArrowRight, Eye, AlertTriangle, RefreshCw, X
 } from 'lucide-react'
 import { PageHeader, GlassCard, TrustMeter, StatusBadge } from './ui'
+import { useApp } from '../context/AppContext'
 import { truncateHash } from '../lib/utils'
 import type { Evidence } from '../types'
 
@@ -136,16 +137,19 @@ export function CyberForensicsProcessingView({
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [stages, resultData, errorMsg])
 
+  const { refreshNotifications } = useApp()
+
   // 5. Completion callback
   useEffect(() => {
     if (isFinished && resultData?.evidence) {
+      refreshNotifications()
       const timeout = setTimeout(() => {
         onComplete(resultData.evidence)
       }, 1000)
 
       return () => clearTimeout(timeout)
     }
-  }, [isFinished, resultData, onComplete])
+  }, [isFinished, resultData, onComplete, refreshNotifications])
 
   const sha256Val = resultData?.sha256 || 'b2d71788df1726bf70ca5c6e0a25e5d267ef63d60fb200c66c61fdf408ebc54f'
   const ipfsCidVal = resultData?.ipfsCid || 'QmNNqthfdRWpe6N2hh7SjgDvDLuJ9Qon8T7JSBc99x65r7'

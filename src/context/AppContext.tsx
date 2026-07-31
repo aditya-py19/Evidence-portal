@@ -1,6 +1,5 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import type { User, Notification } from '../types'
-import { notifications as initialNotifications } from '../data/mockData'
 
 interface AuthContextType {
   user: User | null
@@ -15,8 +14,9 @@ interface AuthContextType {
 interface AppContextType {
   notifications: Notification[]
   unreadCount: number
-  markAsRead: (id: string) => void
-  markAllRead: () => void
+  markAsRead: (id: string) => Promise<void>
+  markAllRead: () => Promise<void>
+  refreshNotifications: () => Promise<void>
   sidebarOpen: boolean
   toggleSidebar: () => void
 }
@@ -92,26 +92,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState(initialNotifications)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  const refreshNotifications = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('evidence-portal-token')
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch('/api/notifications', { headers })
+      if (res.ok) {
+        const data = await res.json() as { notifications: Notification[] }
+        setNotifications(data.notifications)
+      }
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshNotifications()
+  }, [refreshNotifications])
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  const markAsRead = useCallback((id: string) => {
+  const markAsRead = useCallback(async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     )
+    try {
+      const token = localStorage.getItem('evidence-portal-token')
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      await fetch(`/api/notifications/${id}/read`, {
+        method: 'PATCH',
+        headers,
+      })
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err)
+    }
   }, [])
 
-  const markAllRead = useCallback(() => {
+  const markAllRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    try {
+      const token = localStorage.getItem('evidence-portal-token')
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      await fetch('/api/notifications/read-all', {
+        method: 'PATCH',
+        headers,
+      })
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err)
+    }
   }, [])
 
   const toggleSidebar = useCallback(() => setSidebarOpen((p) => !p), [])
 
   return (
     <AppContext.Provider
-      value={{ notifications, unreadCount, markAsRead, markAllRead, sidebarOpen, toggleSidebar }}
+      value={{ notifications, unreadCount, markAsRead, markAllRead, refreshNotifications, sidebarOpen, toggleSidebar }}
     >
       {children}
     </AppContext.Provider>

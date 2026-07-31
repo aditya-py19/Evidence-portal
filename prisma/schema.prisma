@@ -87,3 +87,19 @@ model Evidence {
   updatedAt         DateTime @updatedAt
 }
 
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   @default("upload")
+  title     String
+  message   String
+  timestamp DateTime @default(now())
+  read      Boolean  @default(false)
+  priority  String   @default("medium")
+  link      String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+

@@ -1,10 +1,10 @@
-﻿import { Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   Upload, Brain, Shield, Link2, UserCheck, Eye, Gavel, AlertTriangle, Bell,
 } from 'lucide-react'
 import { PageHeader, GlassCard, StatusBadge } from '../components/ui'
 import { useApp } from '../context/AppContext'
-import { formatDate } from '../lib/utils'
+import { formatRelativeTime } from '../lib/utils'
 
 const typeIcons: Record<string, React.ReactNode> = {
   upload: <Upload className="w-4 h-4" />,
@@ -65,7 +65,7 @@ export default function NotificationsPage() {
                   } />
                 </div>
                 <p className="text-sm text-navy-700 mt-1">{notif.message}</p>
-                <p className="text-[10px] text-navy-600 mt-2">{formatDate(notif.timestamp)}</p>
+                <p className="text-[10px] text-navy-600 mt-2 font-medium">{formatRelativeTime(notif.timestamp)}</p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 {!notif.read && (

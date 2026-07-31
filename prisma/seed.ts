@@ -140,7 +140,50 @@ async function main() {
       create: item,
     })
   }
+
+  const existingNotifs = await prisma.notification.count()
+  if (existingNotifs === 0) {
+    const initialNotifications = [
+      {
+        type: 'upload',
+        title: 'Evidence File Uploaded & IPFS Pinned',
+        message: 'phishing_screenshot_01.png uploaded to TC-2026-0142 and pinned to Pinata Cloud IPFS',
+        priority: 'medium',
+        read: false,
+        link: '/evidence'
+      },
+      {
+        type: 'blockchain',
+        title: 'Polygon Amoy On-Chain Confirmation',
+        message: 'Registered on EvidenceRegistry.sol (Tx: 0xf7676213... block #43686774)',
+        priority: 'low',
+        read: true,
+        link: '/blockchain'
+      },
+      {
+        type: 'ai',
+        title: 'AI Forensic Classification Complete',
+        message: 'Sightengine Deepfake & Forgery detection completed (Trust Score: 96)',
+        priority: 'high',
+        read: false,
+        link: '/ai-verification'
+      },
+      {
+        type: 'tampering',
+        title: 'Tampering Alert Flagged',
+        message: 'Video frame manipulation flagged in cctv_footage_ringroad.mp4 (Risk Score: 78)',
+        priority: 'critical',
+        read: false,
+        link: '/ai-verification'
+      }
+    ]
+
+    for (const notif of initialNotifications) {
+      await prisma.notification.create({ data: notif })
+    }
+  }
 }
 
 main().finally(() => prisma.$disconnect())
+
 

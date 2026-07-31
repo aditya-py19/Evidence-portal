@@ -620,6 +620,31 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
 
     const dbRecord = await prisma.evidence.create({ data: createData })
 
+    // Auto-create notifications
+    try {
+      await prisma.notification.create({
+        data: {
+          type: 'upload',
+          title: 'Evidence File Uploaded & IPFS Pinned',
+          message: `${req.file.originalname} uploaded to ${evidenceId} and pinned to Pinata Cloud IPFS.`,
+          priority: 'medium',
+          link: `/evidence-passport/${dbRecord.id}`,
+        },
+      })
+
+      await prisma.notification.create({
+        data: {
+          type: 'blockchain',
+          title: 'Polygon Amoy On-Chain Registration',
+          message: `Registered on EvidenceRegistry.sol (Tx: ${chainRecord.transactionHash.substring(0, 10)}... in block #${chainRecord.blockNumber}).`,
+          priority: 'low',
+          link: `/blockchain/${dbRecord.id}`,
+        },
+      })
+    } catch (notifErr) {
+      console.error('Failed to create upload notification:', notifErr)
+    }
+
     const formattedEvidence = {
       id: dbRecord.id,
       evidenceId: dbRecord.evidenceId,
@@ -687,6 +712,48 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
     next(error)
   }
 })
+
+// Notifications APIs
+app.get('/api/notifications', authenticate, async (_req: AuthRequest, res, next) => {
+  try {
+    const notifications = await prisma.notification.findMany({
+      orderBy: { timestamp: 'desc' },
+    })
+    return res.json({ notifications })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.patch('/api/notifications/:id/read', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!rawId) return res.status(400).json({ message: 'Notification ID is required.' })
+
+    const updated = await prisma.notification.update({
+      where: { id: rawId },
+      data: { read: true },
+    })
+    return res.json({ notification: updated })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.patch('/api/notifications/read-all', authenticate, async (_req: AuthRequest, res, next) => {
+  try {
+    await prisma.notification.updateMany({
+      data: { read: true },
+    })
+    const notifications = await prisma.notification.findMany({
+      orderBy: { timestamp: 'desc' },
+    })
+    return res.json({ notifications, message: 'All notifications marked as read.' })
+  } catch (error) {
+    next(error)
+  }
+})
+
 
 app.get('/api/evidence', authenticate, async (_req: AuthRequest, res, next) => {
   try {
