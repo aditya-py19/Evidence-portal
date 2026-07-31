@@ -45,6 +45,45 @@ async function main() {
     },
   })
 
+  const initialCases = [
+    {
+      caseId: 'TC-2026-0142',
+      title: 'Cyber Fraud – UPI Payment Scam',
+      firNumber: 'FIR-2026-9042',
+      crimeType: 'Cyber Financial Fraud',
+      description: 'Phishing attack resulting in fraudulent UPI money transfer via spoofed banking interface',
+      location: 'Connaught Place, New Delhi',
+      dateTime: '2026-07-28 14:30',
+      officerAssigned: 'Rajesh Kumar',
+      department: 'Cyber Crime Cell, Delhi Police',
+      priority: 'high',
+      status: 'active',
+      verificationToken: 'vtok-case-0142-8a9d0e1f2a3b',
+    },
+    {
+      caseId: 'TC-2026-0138',
+      title: 'Digital Evidence Tampering – Hit & Run',
+      firNumber: 'FIR-2026-8812',
+      crimeType: 'Hit & Run Vehicle Accident',
+      description: 'CCTV footage manipulation attempt in fatal hit and run incident on South Delhi ring road',
+      location: 'Ring Road, South Delhi',
+      dateTime: '2026-07-25 22:15',
+      officerAssigned: 'Vikram Singh',
+      department: 'Traffic Investigation Unit, Delhi',
+      priority: 'critical',
+      status: 'under_review',
+      verificationToken: 'vtok-case-0138-4c5d6e7f8a9b',
+    },
+  ]
+
+  for (const c of initialCases) {
+    await prisma.case.upsert({
+      where: { caseId: c.caseId },
+      update: {},
+      create: c,
+    })
+  }
+
   const initialEvidences = [
     {
       evidenceId: 'EVD-TC-2026-0142-001',
@@ -56,6 +95,7 @@ async function main() {
       ipfsCid: 'QmX7bK9nR2pL4mJ8vF3hW6tY1sA5dG0cE9uI2oP7qN4rT6',
       ipfsGatewayUrl: 'https://gateway.pinata.cloud/ipfs/QmX7bK9nR2pL4mJ8vF3hW6tY1sA5dG0cE9uI2oP7qN4rT6',
       sha256: 'a3f5c8d9e2b1a7f4c6d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9',
+      verificationToken: 'vtok-evd-0142-001-a3f5c8d9',
       trustScore: 96,
       trustLevel: 'highly_trusted',
       status: 'approved',

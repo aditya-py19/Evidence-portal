@@ -85,8 +85,28 @@ model Evidence {
   uploaderId        String?
   uploader          User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
   uploadedBy        String   @default("Unknown Officer")
+  verificationToken String?  @unique @default(cuid())
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+model Case {
+  id                  String   @id @default(cuid())
+  caseId              String   @unique
+  title               String
+  firNumber           String   @default("FIR-2026-9042")
+  crimeType           String   @default("Cyber Crime")
+  description         String
+  location            String   @default("Connaught Place, New Delhi")
+  dateTime            String   @default("2026-07-28 14:30")
+  officerAssigned     String   @default("Rajesh Kumar")
+  officerId           String?
+  department          String   @default("Cyber Crime Cell, Delhi Police")
+  priority            String   @default("high")
+  status              String   @default("active")
+  verificationToken   String   @unique @default(cuid())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 

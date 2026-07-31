@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import QRCode from 'react-qr-code'
 import {
   QrCode, ArrowLeft, Copy, Shield, Link2, Clock, FileText, Download,
   Eye, CheckCircle, AlertTriangle, Database, Activity, RefreshCw, FileSearch, ShieldCheck, Film, Music, Image as ImageIcon, Brain
@@ -207,6 +208,10 @@ This certificate confirms that the digital evidence payload has been cryptograph
     l.details.includes(evidence.evidenceId) ||
     l.details.includes(evidence.fileName)
   )
+
+  const vToken = (evidence as any).verificationToken || evidence.id || 'vtok-evd-0142-001-a3f5c8d9'
+  const verifyUrl = `${window.location.origin}/verify/${vToken}`
+  const qrImageApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(verifyUrl)}`
 
   return (
     <div className="space-y-6 animate-in">
@@ -532,11 +537,20 @@ This certificate confirms that the digital evidence payload has been cryptograph
           </GlassCard>
 
           <GlassCard className="text-center space-y-2">
-            <div className="w-32 h-32 mx-auto bg-white rounded-xl p-2 flex items-center justify-center border border-navy-100 shadow-sm">
-              <QrCode className="w-full h-full text-navy-900" />
-            </div>
-            <p className="text-xs font-semibold text-navy-900">QR Forensic Seal</p>
-            <p className="text-[10px] text-navy-600">Scan to verify on-chain authenticity in court</p>
+            <Link to={`/verify/${vToken}`} target="_blank" className="block group">
+              <div className="w-36 h-36 mx-auto bg-white rounded-xl p-2.5 flex items-center justify-center border border-navy-100 shadow-sm group-hover:border-blue-400 transition-all">
+                <QRCode
+                  size={140}
+                  style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                  value={verifyUrl}
+                  viewBox={`0 0 256 256`}
+                />
+              </div>
+              <p className="text-xs font-bold text-navy-900 mt-2 group-hover:text-blue-600 transition-colors flex items-center justify-center gap-1">
+                <QrCode className="w-3.5 h-3.5" /> Self-Contained SVG QR (Live Link)
+              </p>
+            </Link>
+            <p className="text-[10px] text-navy-600 font-mono truncate">Token: {vToken}</p>
           </GlassCard>
 
           <GlassCard className="space-y-3">

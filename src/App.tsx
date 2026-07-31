@@ -24,6 +24,7 @@ import AdminLoginPage from './pages/admin/AdminLoginPage'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminOfficersPage from './pages/admin/AdminOfficersPage'
 import AdminActivityLogsPage from './pages/admin/AdminActivityLogsPage'
+import PublicCaseVerificationPage from './pages/PublicCaseVerificationPage'
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin } = useAuth()
@@ -49,6 +50,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/verify/:verificationToken" element={<PublicCaseVerificationPage />} />
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <PortalSelectionPage />} />
       <Route path="/officer-login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage portal="officer" />} />
       <Route path="/judge-login" element={isAuthenticated ? <Navigate to="/judge-portal" replace /> : <LoginPage portal="judge" />} />
