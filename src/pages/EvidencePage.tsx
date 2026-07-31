@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Upload, Image, Video, Music, FileText, Eye, Shield,
   Brain, Link2, X,
 } from 'lucide-react'
 import { PageHeader, GlassCard, SearchInput, StatusBadge, TrustMeter } from '../components/ui'
+import { CyberForensicsProcessingView } from '../components/CyberForensicsProcessingView'
 import { formatDate, getTrustLevelBg } from '../lib/utils'
 import type { Evidence, EvidenceType } from '../types'
 
@@ -23,13 +24,12 @@ const statusVariant = (s: string) => {
 }
 
 export default function EvidencePage() {
+  const navigate = useNavigate()
   const [evidence, setEvidence] = useState<Evidence[]>([])
-
   const [search, setSearch] = useState('')
   const [dragOver, setDragOver] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [processingFile, setProcessingFile] = useState<File | null>(null)
 
   const fetchEvidence = useCallback(async () => {
     try {
@@ -43,7 +43,6 @@ export default function EvidencePage() {
         if (body.evidence && Array.isArray(body.evidence)) {
           setEvidence(body.evidence)
         }
-
       }
     } catch (err) {
       console.error('Failed to load evidence from server:', err)
@@ -67,67 +66,40 @@ export default function EvidencePage() {
     if (file) setSelectedFile(file)
   }, [])
 
-  const handleUpload = async () => {
-    if (!selectedFile) return
-    setUploading(true)
-    setUploadProgress(10)
-
-    try {
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-
-      const token = localStorage.getItem('evidence-portal-token')
-      const headers: Record<string, string> = {}
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      setUploadProgress(30)
-      const response = await fetch('/api/evidence/upload', {
-        method: 'POST',
-        headers,
-        body: formData,
-      })
-
-      setUploadProgress(70)
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})) as { message?: string }
-        if (response.status === 401) {
-          localStorage.removeItem('evidence-portal-token')
-          localStorage.removeItem('evidence-portal-user')
-          alert('Your session has expired or is invalid. Please sign in again.')
-          window.location.href = '/login'
-          throw new Error('Session expired. Please sign in again.')
-        }
-        throw new Error(errorData.message || 'Failed to upload to IPFS.')
-      }
-
-      const data = await response.json() as {
-        evidence?: Evidence
-        ipfsCid: string
-        sha256: string
-        fileName: string
-        fileSize: string
-        message?: string
-      }
-
-      setUploadProgress(100)
-
-      if (data.evidence) {
-        setEvidence((prev) => [data.evidence!, ...prev])
-      } else {
-        await fetchEvidence()
-      }
-
-      setUploading(false)
-      setSelectedFile(null)
-      alert(data.message || `Successfully uploaded to IPFS! CID: ${data.ipfsCid}`)
-    } catch (err: unknown) {
-      setUploading(false)
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
-      alert(`Upload failed: ${errorMsg}`)
+  const handleUpload = () => {
+    console.log('[DEBUG 1] handleUpload() triggered with file:', selectedFile?.name)
+    if (!selectedFile) {
+      console.warn('[DEBUG 1.1] handleUpload aborted because selectedFile is null')
+      return
     }
+    console.log('[DEBUG 2] Setting processingFile to:', selectedFile.name)
+    setProcessingFile(selectedFile)
+    setSelectedFile(null)
   }
+
+  console.log('[DEBUG 3] EvidencePage rendering. processingFile =', processingFile?.name, '| selectedFile =', selectedFile?.name)
+
+  if (processingFile) {
+    console.log('[DEBUG 4] EvidencePage rendering CyberForensicsProcessingView!')
+    return (
+      <CyberForensicsProcessingView
+        selectedFile={processingFile}
+        onCancel={() => {
+          console.log('[DEBUG CANCEL] Resetting processingFile to null')
+          setProcessingFile(null)
+        }}
+        onComplete={(newEvidence) => {
+          console.log('[DEBUG COMPLETE] Upload complete! Redirecting to:', newEvidence.id)
+          setProcessingFile(null)
+          setEvidence((prev) => [newEvidence, ...prev])
+          navigate(`/ai-verification/${newEvidence.id}`, { state: { evidence: newEvidence } })
+        }}
+      />
+    )
+  }
+
+
+
 
 
   return (
@@ -184,26 +156,15 @@ export default function EvidencePage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            {uploading ? (
-              <div>
-                <div className="flex justify-between text-xs text-navy-700 mb-1">
-                  <span>Uploading & Encrypting...</span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="h-2 bg-cyber-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-200 rounded-full" style={{ width: `${uploadProgress}%` }} />
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleUpload}
-                disabled={uploading || !selectedFile}
-                className="cyber-btn-primary w-full"
-              >
-                <Upload className="w-4 h-4" /> Upload to Secure Storage
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleUpload}
+              disabled={!selectedFile}
+              className="cyber-btn-primary w-full mt-2 flex items-center justify-center gap-2"
+            >
+              <Upload className="w-4 h-4" /> Upload & Launch Cyber Forensics Engine
+            </button>
+
           </div>
         )}
       </GlassCard>
