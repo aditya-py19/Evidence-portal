@@ -41,6 +41,23 @@ export default function GeolocationPage() {
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const [crimeLoc, setCrimeLoc] = useState({
+    lat: 28.6315,
+    lng: 77.2167,
+    address: 'Connaught Place, New Delhi',
+  })
+  const [locationQuery, setLocationQuery] = useState('Connaught Place, New Delhi')
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([])
+  const [isSearchingLocations, setIsSearchingLocations] = useState(false)
+  const [locationSearchError, setLocationSearchError] = useState('')
+
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<L.Map | null>(null)
+  const crimeMarkerRef = useRef<L.Marker | null>(null)
+  const uploadMarkerRef = useRef<L.Marker | null>(null)
+  const circleRef = useRef<L.Circle | null>(null)
+
+  // Fetch evidence from PostgreSQL
   useEffect(() => {
     async function loadData() {
       setLoading(true)
@@ -83,34 +100,21 @@ export default function GeolocationPage() {
     loadData()
   }, [id])
 
-  if (loading) return <div className="text-center py-20 text-navy-700">Loading geolocation verification...</div>
-  if (!evidence) return <div className="text-center py-20 text-navy-700">Evidence not found</div>
-
-
-  const [crimeLoc, setCrimeLoc] = useState({
-    lat: evidence.crimeLocation.lat,
-    lng: evidence.crimeLocation.lng,
-    address: evidence.crimeLocation.address,
-  })
-  const [locationQuery, setLocationQuery] = useState(evidence.crimeLocation.address)
-  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([])
-  const [isSearchingLocations, setIsSearchingLocations] = useState(false)
-  const [locationSearchError, setLocationSearchError] = useState('')
-
-  // Reset coordinates when switching evidence
+  // Sync crime location coordinates when evidence changes
   useEffect(() => {
-    setCrimeLoc({
-      lat: evidence.crimeLocation.lat,
-      lng: evidence.crimeLocation.lng,
-      address: evidence.crimeLocation.address,
-    })
-    setLocationQuery(evidence.crimeLocation.address)
-    setLocationSuggestions([])
-    setLocationSearchError('')
-  }, [evidence.id])
+    if (evidence?.crimeLocation) {
+      setCrimeLoc({
+        lat: evidence.crimeLocation.lat,
+        lng: evidence.crimeLocation.lng,
+        address: evidence.crimeLocation.address,
+      })
+      setLocationQuery(evidence.crimeLocation.address)
+      setLocationSuggestions([])
+      setLocationSearchError('')
+    }
+  }, [evidence?.id])
 
-  // Search OpenStreetMap's geocoder after the user pauses typing. Selecting a
-  // result stores the returned coordinates, so the marker represents the real place.
+  // Search OpenStreetMap's geocoder after typing
   useEffect(() => {
     const query = locationQuery.trim()
     if (query.length < 3 || query === crimeLoc.address) {
@@ -146,24 +150,26 @@ export default function GeolocationPage() {
     }
   }, [locationQuery, crimeLoc.address])
 
-  const mapContainerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const crimeMarkerRef = useRef<L.Marker | null>(null)
-  const uploadMarkerRef = useRef<L.Marker | null>(null)
-  const circleRef = useRef<L.Circle | null>(null)
+  // Early returns after all hooks are executed
+  if (loading) return <div className="text-center py-20 text-navy-700">Loading geolocation verification...</div>
+  if (!evidence) return <div className="text-center py-20 text-navy-700">Evidence not found</div>
+
+  const uploadLat = evidence.uploadLocation?.lat ?? 28.6289
+  const uploadLng = evidence.uploadLocation?.lng ?? 77.2065
+  const allowedRadius = evidence.allowedRadius ?? 5
 
   // Calculate dynamic values
   const distance = calculateDistance(
-    evidence.uploadLocation.lat,
-    evidence.uploadLocation.lng,
+    uploadLat,
+    uploadLng,
     crimeLoc.lat,
     crimeLoc.lng
   )
 
   let dynamicStatus: 'verified' | 'warning' | 'outside_boundary' = 'verified'
-  if (distance <= evidence.allowedRadius * 0.8) {
+  if (distance <= allowedRadius * 0.8) {
     dynamicStatus = 'verified'
-  } else if (distance <= evidence.allowedRadius) {
+  } else if (distance <= allowedRadius) {
     dynamicStatus = 'warning'
   } else {
     dynamicStatus = 'outside_boundary'
@@ -179,6 +185,7 @@ export default function GeolocationPage() {
   }
   const breakdownValues = Object.values(updatedBreakdown)
   const dynamicTrustScore = Math.round(breakdownValues.reduce((a, b) => a + b, 0) / breakdownValues.length)
+
 
   // Initialize Map
   useEffect(() => {
