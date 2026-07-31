@@ -150,46 +150,13 @@ export default function GeolocationPage() {
     }
   }, [locationQuery, crimeLoc.address])
 
-  // Early returns after all hooks are executed
-  if (loading) return <div className="text-center py-20 text-navy-700">Loading geolocation verification...</div>
-  if (!evidence) return <div className="text-center py-20 text-navy-700">Evidence not found</div>
-
-  const uploadLat = evidence.uploadLocation?.lat ?? 28.6289
-  const uploadLng = evidence.uploadLocation?.lng ?? 77.2065
-  const allowedRadius = evidence.allowedRadius ?? 5
-
-  // Calculate dynamic values
-  const distance = calculateDistance(
-    uploadLat,
-    uploadLng,
-    crimeLoc.lat,
-    crimeLoc.lng
-  )
-
-  let dynamicStatus: 'verified' | 'warning' | 'outside_boundary' = 'verified'
-  if (distance <= allowedRadius * 0.8) {
-    dynamicStatus = 'verified'
-  } else if (distance <= allowedRadius) {
-    dynamicStatus = 'warning'
-  } else {
-    dynamicStatus = 'outside_boundary'
-  }
-
-  const geo = geoConfig[dynamicStatus]
-  const GeoIcon = geo.icon
-
-  // Recalculate dynamic trust score
-  const updatedBreakdown = {
-    ...evidence.trustBreakdown,
-    geolocation: dynamicStatus === 'verified' ? 100 : dynamicStatus === 'warning' ? 70 : 20,
-  }
-  const breakdownValues = Object.values(updatedBreakdown)
-  const dynamicTrustScore = Math.round(breakdownValues.reduce((a, b) => a + b, 0) / breakdownValues.length)
-
-
-  // Initialize Map
+  // 4. Initialize Leaflet Map (must be called before early returns)
   useEffect(() => {
-    if (!mapContainerRef.current) return
+    if (!mapContainerRef.current || !evidence) return
+
+    const uploadLat = evidence.uploadLocation?.lat ?? 28.6289
+    const uploadLng = evidence.uploadLocation?.lng ?? 77.2065
+    const allowedRad = evidence.allowedRadius ?? 5
 
     // Create map instance
     const map = L.map(mapContainerRef.current).setView([crimeLoc.lat, crimeLoc.lng], 12)
@@ -232,7 +199,7 @@ export default function GeolocationPage() {
     const crimeMarker = L.marker([crimeLoc.lat, crimeLoc.lng], { icon: crimeIcon, draggable: true }).addTo(map)
     crimeMarkerRef.current = crimeMarker
 
-    const uploadMarker = L.marker([evidence.uploadLocation.lat, evidence.uploadLocation.lng], { icon: uploadIcon }).addTo(map)
+    const uploadMarker = L.marker([uploadLat, uploadLng], { icon: uploadIcon }).addTo(map)
     uploadMarkerRef.current = uploadMarker
 
     // Add allowed radius circle centered on crime location
@@ -242,7 +209,7 @@ export default function GeolocationPage() {
       fillOpacity: 0.08,
       weight: 1.5,
       dashArray: '5, 5',
-      radius: evidence.allowedRadius * 1000,
+      radius: allowedRad * 1000,
     }).addTo(map)
     circleRef.current = circle
 
@@ -282,9 +249,9 @@ export default function GeolocationPage() {
       uploadMarkerRef.current = null
       circleRef.current = null
     }
-  }, [evidence.id])
+  }, [evidence?.id])
 
-  // Synchronise map and circle position when coordinates change manually via input
+  // 5. Synchronise map and circle position when coordinates change manually via input (must be called before early returns)
   useEffect(() => {
     const lat = crimeLoc.lat
     const lng = crimeLoc.lng
@@ -305,6 +272,43 @@ export default function GeolocationPage() {
       mapRef.current.fitBounds(group.getBounds().pad(0.15))
     }
   }, [crimeLoc.lat, crimeLoc.lng])
+
+  // Early returns strictly AFTER ALL 5 useEffect hooks are declared
+  if (loading) return <div className="text-center py-20 text-navy-700">Loading geolocation verification...</div>
+  if (!evidence) return <div className="text-center py-20 text-navy-700">Evidence not found</div>
+
+  const uploadLat = evidence.uploadLocation?.lat ?? 28.6289
+  const uploadLng = evidence.uploadLocation?.lng ?? 77.2065
+  const allowedRadius = evidence.allowedRadius ?? 5
+
+  // Calculate dynamic values
+  const distance = calculateDistance(
+    uploadLat,
+    uploadLng,
+    crimeLoc.lat,
+    crimeLoc.lng
+  )
+
+  let dynamicStatus: 'verified' | 'warning' | 'outside_boundary' = 'verified'
+  if (distance <= allowedRadius * 0.8) {
+    dynamicStatus = 'verified'
+  } else if (distance <= allowedRadius) {
+    dynamicStatus = 'warning'
+  } else {
+    dynamicStatus = 'outside_boundary'
+  }
+
+  const geo = geoConfig[dynamicStatus]
+  const GeoIcon = geo.icon
+
+  // Recalculate dynamic trust score
+  const updatedBreakdown = {
+    ...evidence.trustBreakdown,
+    geolocation: dynamicStatus === 'verified' ? 100 : dynamicStatus === 'warning' ? 70 : 20,
+  }
+  const breakdownValues = Object.values(updatedBreakdown)
+  const dynamicTrustScore = Math.round(breakdownValues.reduce((a, b) => a + b, 0) / breakdownValues.length)
+
 
   const handleLatitudeChange = (val: string) => {
     const lat = parseFloat(val)
