@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Brain, ShieldCheck, Cpu, Activity, Lock, Cloud, Link2,
   CheckCircle, Loader2, FileText, Database, ArrowRight, Eye, AlertTriangle, RefreshCw, X
 } from 'lucide-react'
-import { GlassCard, TrustMeter, StatusBadge } from './ui'
+import { TrustMeter, StatusBadge } from './ui'
 import { truncateHash } from '../lib/utils'
 import type { Evidence } from '../types'
 
@@ -25,8 +26,6 @@ export function CyberForensicsProcessingView({
   onComplete,
   onCancel,
 }: CyberForensicsProcessingViewProps) {
-  console.log('[DEBUG FORENSICS VIEW] CyberForensicsProcessingView mounted for file:', selectedFile?.name)
-
   const [stages, setStages] = useState<StageItem[]>([
     { id: 1, label: 'Initializing Cyber Forensics AI Engine v3.2...', status: 'processing' },
     { id: 2, label: 'Loading Neural Classification Ensembles (ResNet-152 + EfficientNet-B7)...', status: 'pending' },
@@ -47,6 +46,7 @@ export function CyberForensicsProcessingView({
   const [resultData, setResultData] = useState<any>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isFinished, setIsFinished] = useState(false)
+  const [fadingOut, setFadingOut] = useState(false)
   const terminalEndRef = useRef<HTMLDivElement>(null)
 
   // 1. Latency Timer
@@ -60,7 +60,6 @@ export function CyberForensicsProcessingView({
   // 2. Perform upload on mount
   useEffect(() => {
     let unmounted = false
-    console.log('[DEBUG FORENSICS VIEW] Executing /api/evidence/upload HTTP request...')
 
     async function executeUpload() {
       try {
@@ -83,12 +82,11 @@ export function CyberForensicsProcessingView({
         }
 
         const data = await res.json()
-        console.log('[DEBUG FORENSICS VIEW] Received API Upload Response:', data)
         if (!unmounted) {
           setResultData(data)
         }
       } catch (err: any) {
-        console.error('[DEBUG FORENSICS VIEW] Upload Error:', err)
+        console.error('Processing Upload Error:', err)
         if (!unmounted) {
           setErrorMsg(err.message || 'Upload failed.')
         }
@@ -131,7 +129,7 @@ export function CyberForensicsProcessingView({
         setIsFinished(true)
         clearInterval(interval)
       }
-    }, 400)
+    }, 380)
 
     return () => clearInterval(interval)
   }, [currentStep, resultData, isFinished, errorMsg])
@@ -141,14 +139,21 @@ export function CyberForensicsProcessingView({
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [stages, resultData, errorMsg])
 
-  // 5. Completion callback
+  // 5. Fade out and completion callback
   useEffect(() => {
     if (isFinished && resultData?.evidence) {
-      console.log('[DEBUG FORENSICS VIEW] Forensic analysis complete. Navigating in 1.2s...')
-      const timeout = setTimeout(() => {
+      const fadeTimeout = setTimeout(() => {
+        setFadingOut(true)
+      }, 900)
+
+      const completeTimeout = setTimeout(() => {
         onComplete(resultData.evidence)
-      }, 1200)
-      return () => clearTimeout(timeout)
+      }, 1300)
+
+      return () => {
+        clearTimeout(fadeTimeout)
+        clearTimeout(completeTimeout)
+      }
     }
   }, [isFinished, resultData, onComplete])
 
@@ -157,56 +162,58 @@ export function CyberForensicsProcessingView({
   const txHashVal = resultData?.blockchain?.transactionHash || resultData?.evidence?.transactionHash || '0x076bc8f0dfdf7ede56958337bd853f1a9ebd83e91b160ae27115bd1dd15e8c71'
   const trustScoreVal = resultData?.trustScore ?? resultData?.evidence?.trustScore ?? 78
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-navy-950/95 backdrop-blur-xl p-4 sm:p-8 animate-in text-white">
-      <div className="max-w-[1400px] mx-auto space-y-6">
-        {/* Header Banner */}
-        <div className="p-5 rounded-2xl bg-navy-900/90 border border-cyan-500/40 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 animate-pulse" />
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-cyan-950 border border-cyan-500/50 text-cyan-400 shadow-glow">
-                <Cpu className="w-6 h-6 animate-spin" style={{ animationDuration: '6s' }} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                  <span className="text-[11px] uppercase font-bold text-cyan-400 tracking-wider">Cyber Forensics Control Center — Live Telemetry</span>
-                </div>
-                <h2 className="text-xl font-bold text-white">Processing File: {selectedFile.name}</h2>
-              </div>
+  return createPortal(
+    <div
+      className={`fixed inset-0 z-[9999] h-screen w-screen max-h-screen max-w-vw overflow-hidden bg-gradient-to-br from-navy-950/95 via-navy-900/95 to-cyber-900/95 backdrop-blur-xl p-3 sm:p-4 text-white flex flex-col transition-all duration-500 ${
+        fadingOut ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'
+      }`}
+      style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 9999 }}
+    >
+      <div className="max-w-[1600px] w-full mx-auto h-full flex flex-col space-y-3 min-h-0">
+        {/* Compact Header Bar */}
+        <div className="p-3 rounded-xl bg-navy-900/80 border border-navy-700/60 shadow-lg shrink-0 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-lg bg-navy-950 border border-cyan-500/40 text-cyan-400 shrink-0">
+              <Cpu className="w-5 h-5 animate-spin" style={{ animationDuration: '6s' }} />
             </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[10px] uppercase font-bold text-saffron-400 tracking-wider">Cyber Forensics Intelligence Engine v3.2</span>
+              </div>
+              <h2 className="text-sm font-bold text-white truncate">Processing File: {selectedFile.name}</h2>
+            </div>
+          </div>
 
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-[10px] text-cyan-300 uppercase font-semibold">Elapsed Latency</p>
-                <p className="text-xl font-mono font-bold text-white">{elapsed.toFixed(1)}s</p>
-              </div>
-              <div className="px-3.5 py-1.5 rounded-xl bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 text-xs font-mono font-bold">
-                Step {Math.min(currentStep, 12)} / 12
-              </div>
-              {onCancel && (
-                <button onClick={onCancel} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="Cancel">
-                  <X className="w-5 h-5" />
-                </button>
-              )}
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="text-right hidden sm:block">
+              <p className="text-[9px] text-gray-400 uppercase font-semibold">Latency</p>
+              <p className="text-sm font-mono font-bold text-white">{elapsed.toFixed(1)}s</p>
             </div>
+            <div className="px-3 py-1 rounded-lg bg-navy-950 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold">
+              Step {Math.min(currentStep, 12)} / 12
+            </div>
+            {onCancel && (
+              <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="Cancel">
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Terminal Window */}
-          <div className="lg:col-span-2 p-5 rounded-2xl bg-navy-900/80 border border-navy-700/60 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-navy-800 pb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Activity className="w-4 h-4 text-cyan-400" /> SOC Neural Forensics Terminal
+        {/* Main Grid: Takes remaining viewport space without overflow */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+          {/* Left 2 Cols: Terminal Panel */}
+          <div className="lg:col-span-2 p-3 sm:p-4 rounded-xl bg-navy-900/80 border border-navy-700/60 shadow-lg flex flex-col h-full min-h-0">
+            <div className="flex items-center justify-between border-b border-navy-800 pb-2 shrink-0">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5 text-cyan-400" /> SOC Neural Forensics Terminal
               </h3>
-              <span className="text-[10px] font-mono text-cyan-400 uppercase">Engine ID: SOC-NEURAL-A100</span>
+              <span className="text-[10px] font-mono text-cyan-400 uppercase">Cluster ID: SOC-A100-DELHI</span>
             </div>
 
-            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-2 custom-scrollbar">
+            {/* Terminal Pipeline List (Independently scrollable) */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 custom-scrollbar my-2">
               {stages.map((stage) => {
                 const isProcessing = stage.status === 'processing'
                 const isSuccess = stage.status === 'success'
@@ -214,30 +221,30 @@ export function CyberForensicsProcessingView({
                 return (
                   <div
                     key={stage.id}
-                    className={`p-3.5 rounded-xl border transition-all duration-300 ${
+                    className={`p-2.5 rounded-lg border transition-all duration-300 ${
                       isProcessing
-                        ? 'bg-cyan-950/40 border-cyan-400/60 shadow-lg'
+                        ? 'bg-cyan-950/40 border-cyan-400/60 shadow-md'
                         : isSuccess
                         ? 'bg-emerald-950/30 border-emerald-500/40'
-                        : 'bg-navy-950/30 border-navy-800/40 opacity-40'
+                        : 'bg-navy-950/20 border-navy-800/30 opacity-40'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        {isProcessing && <Loader2 className="w-4 h-4 text-cyan-400 animate-spin shrink-0" />}
-                        {isSuccess && <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {isProcessing && <Loader2 className="w-3.5 h-3.5 text-cyan-400 animate-spin shrink-0" />}
+                        {isSuccess && <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
                         {!isProcessing && !isSuccess && (
-                          <div className="w-4 h-4 rounded-full border border-navy-700 flex items-center justify-center text-[10px] text-gray-500 shrink-0 font-mono">
+                          <div className="w-3.5 h-3.5 rounded-full border border-navy-700 flex items-center justify-center text-[9px] text-gray-500 shrink-0 font-mono">
                             {stage.id}
                           </div>
                         )}
-                        <p className={`text-xs font-semibold ${isProcessing ? 'text-cyan-300 font-bold' : isSuccess ? 'text-white' : 'text-gray-400'}`}>
+                        <p className={`text-xs font-semibold truncate ${isProcessing ? 'text-cyan-300 font-bold' : isSuccess ? 'text-white' : 'text-gray-400'}`}>
                           {stage.label}
                         </p>
                       </div>
 
-                      <span className="text-[10px] font-mono uppercase font-bold shrink-0">
-                        {isProcessing && <span className="text-cyan-400 animate-pulse">Processing...</span>}
+                      <span className="text-[9px] font-mono uppercase font-bold shrink-0">
+                        {isProcessing && <span className="text-cyan-400 animate-pulse">Processing</span>}
                         {isSuccess && <span className="text-emerald-400">Verified</span>}
                         {!isProcessing && !isSuccess && <span className="text-gray-500">Queued</span>}
                       </span>
@@ -245,7 +252,7 @@ export function CyberForensicsProcessingView({
 
                     {/* Stage Badges */}
                     {stage.id === 3 && (isProcessing || isSuccess) && (
-                      <div className="mt-2.5 ml-7 p-2 rounded-lg bg-black/40 border border-navy-800 text-[11px] font-mono text-cyan-300 flex flex-wrap gap-3">
+                      <div className="mt-1.5 ml-6 p-1.5 rounded bg-black/40 border border-navy-800 text-[10px] font-mono text-cyan-300 flex flex-wrap gap-2">
                         <span>Name: {selectedFile.name}</span>
                         <span>Size: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
                         <span>Type: {selectedFile.type || 'image/png'}</span>
@@ -253,31 +260,31 @@ export function CyberForensicsProcessingView({
                     )}
 
                     {stage.id === 4 && (isProcessing || isSuccess) && (
-                      <div className="mt-2.5 ml-7 p-2 rounded-lg bg-black/40 border border-navy-800 text-[11px] font-mono text-cyan-300 flex items-center gap-2">
+                      <div className="mt-1.5 ml-6 p-1.5 rounded bg-black/40 border border-navy-800 text-[10px] font-mono text-cyan-300 flex items-center gap-2">
                         <span className="text-gray-400 font-sans">SHA-256:</span>
                         <span className="truncate">{sha256Val}</span>
                       </div>
                     )}
 
                     {stage.id === 5 && (isProcessing || isSuccess) && (
-                      <div className="mt-2.5 ml-7 p-2 rounded-lg bg-black/40 border border-navy-800 text-[11px] font-mono text-cyan-300 flex items-center gap-2">
+                      <div className="mt-1.5 ml-6 p-1.5 rounded bg-black/40 border border-navy-800 text-[10px] font-mono text-cyan-300 flex items-center gap-2">
                         <span className="text-gray-400 font-sans">IPFS Gateway CID:</span>
                         <span className="truncate">{ipfsCidVal}</span>
                       </div>
                     )}
 
                     {stage.id === 9 && (isProcessing || isSuccess) && (
-                      <div className="mt-2.5 ml-7 p-2 rounded-lg bg-black/40 border border-navy-800 text-[11px] font-mono text-cyan-300 flex items-center gap-2">
+                      <div className="mt-1.5 ml-6 p-1.5 rounded bg-black/40 border border-navy-800 text-[10px] font-mono text-cyan-300 flex items-center gap-2">
                         <span className="text-gray-400 font-sans">Polygon Amoy Contract:</span>
                         <span className="truncate">0x9E4fae61B349241f8a753dD50E092dF481F8ae08</span>
                       </div>
                     )}
 
                     {stage.id === 10 && (isProcessing || isSuccess) && (
-                      <div className="mt-2.5 ml-7 p-2 rounded-lg bg-black/40 border border-navy-800 text-[11px] font-mono text-cyan-300 flex flex-wrap items-center gap-3">
+                      <div className="mt-1.5 ml-6 p-1.5 rounded bg-black/40 border border-navy-800 text-[10px] font-mono text-cyan-300 flex flex-wrap items-center gap-2">
                         <span>Tx Hash: {truncateHash(txHashVal, 10)}</span>
                         <span>Block: #{resultData?.blockchain?.blockNumber || 43687165}</span>
-                        <span>Gas Used: {resultData?.blockchain?.gasUsed || '311117'}</span>
+                        <span>Gas: {resultData?.blockchain?.gasUsed || '311117'}</span>
                       </div>
                     )}
                   </div>
@@ -287,13 +294,13 @@ export function CyberForensicsProcessingView({
             </div>
 
             {errorMsg && (
-              <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-500/50 text-red-300 text-xs font-bold flex items-center justify-between animate-in">
+              <div className="p-2.5 rounded-lg bg-red-950/60 border border-red-500/50 text-red-300 text-xs font-bold flex items-center justify-between shrink-0 mt-1">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
-                  <span>Error: {errorMsg}</span>
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                  <span className="truncate">Error: {errorMsg}</span>
                 </div>
                 {onCancel && (
-                  <button onClick={onCancel} className="px-3 py-1 rounded-lg bg-red-900 hover:bg-red-800 text-white text-xs font-bold flex items-center gap-1">
+                  <button onClick={onCancel} className="px-2.5 py-1 rounded bg-red-900 hover:bg-red-800 text-white text-[11px] font-bold flex items-center gap-1 shrink-0">
                     <RefreshCw className="w-3 h-3" /> Retry
                   </button>
                 )}
@@ -301,63 +308,64 @@ export function CyberForensicsProcessingView({
             )}
 
             {isFinished && (
-              <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between animate-in">
+              <div className="p-2.5 rounded-lg bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between shrink-0 mt-1 animate-in">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-                  <span>Forensic Analysis Complete. Transitioning to AI Verification Passport Report...</span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Forensic Analysis Complete. Transitioning to AI Verification Report...</span>
                 </div>
-                <ArrowRight className="w-4 h-4 text-emerald-400 animate-bounce" />
+                <ArrowRight className="w-4 h-4 text-emerald-400 animate-bounce shrink-0" />
               </div>
             )}
           </div>
 
-          {/* Telemetry Panel */}
-          <div className="p-5 rounded-2xl bg-navy-900/80 border border-navy-700/60 shadow-xl space-y-5">
-            <h3 className="text-sm font-bold text-white border-b border-navy-800 pb-3 flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-cyan-400" /> Telemetry & Trust Engine
+          {/* Right 1 Col: Telemetry Panel */}
+          <div className="p-3 sm:p-4 rounded-xl bg-navy-900/80 border border-navy-700/60 shadow-lg flex flex-col h-full min-h-0 justify-between space-y-3">
+            <h3 className="text-xs font-bold text-white border-b border-navy-800 pb-2 flex items-center gap-2 shrink-0">
+              <Cpu className="w-3.5 h-3.5 text-cyan-400" /> Telemetry & Trust Engine
             </h3>
 
-            <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-black/40 border border-navy-800 text-center">
-              <TrustMeter score={isFinished ? trustScoreVal : Math.min(trustScoreVal, currentStep * 8)} size="md" />
-              <p className="text-[10px] text-gray-400 uppercase font-semibold mt-2">Dynamic Evidence Trust Score</p>
+            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/40 border border-navy-800 text-center shrink-0">
+              <TrustMeter score={isFinished ? trustScoreVal : Math.min(trustScoreVal, currentStep * 8)} size="sm" />
+              <p className="text-[9px] text-gray-400 uppercase font-semibold mt-1">Calculated Evidence Trust Score</p>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-navy-950/50 border border-navy-800">
-                <p className="text-[10px] text-gray-400 uppercase font-semibold">AI Model Precision</p>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-base font-bold text-white">85.4%</span>
-                  <StatusBadge status="High Precision" variant="success" />
+            <div className="space-y-2 text-xs flex-1 flex flex-col justify-center">
+              <div className="p-2.5 rounded-lg bg-navy-950/50 border border-navy-800 flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] text-gray-400 uppercase font-semibold">AI Model Precision</p>
+                  <span className="text-sm font-bold text-white">85.4%</span>
                 </div>
+                <StatusBadge status="High Precision" variant="success" />
               </div>
 
-              <div className="p-3 rounded-xl bg-navy-950/50 border border-navy-800">
-                <p className="text-[10px] text-gray-400 uppercase font-semibold">Decentralized Storage</p>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="font-semibold text-white">Pinata Cloud IPFS</span>
-                  <span className="font-mono text-emerald-400 font-bold">Pinned (100%)</span>
+              <div className="p-2.5 rounded-lg bg-navy-950/50 border border-navy-800 flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] text-gray-400 uppercase font-semibold">Decentralized Storage</p>
+                  <span className="text-xs font-semibold text-white">Pinata Cloud IPFS</span>
                 </div>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">Pinned (100%)</span>
               </div>
 
-              <div className="p-3 rounded-xl bg-navy-950/50 border border-navy-800">
-                <p className="text-[10px] text-gray-400 uppercase font-semibold">Blockchain Ledger</p>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="font-semibold text-white">Polygon Amoy Testnet</span>
-                  <span className="font-mono text-emerald-400 font-bold">Chain ID 80002</span>
+              <div className="p-2.5 rounded-lg bg-navy-950/50 border border-navy-800 flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] text-gray-400 uppercase font-semibold">Blockchain Network</p>
+                  <span className="text-xs font-semibold text-white">Polygon Amoy Testnet</span>
                 </div>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">Chain ID 80002</span>
               </div>
 
-              <div className="p-3 rounded-xl bg-navy-950/50 border border-navy-800">
-                <p className="text-[10px] text-gray-400 uppercase font-semibold">Hardware Acceleration</p>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="font-semibold text-white">NVIDIA A100 Tensor Core</span>
-                  <span className="font-mono text-cyan-400 font-bold">Optimal</span>
+              <div className="p-2.5 rounded-lg bg-navy-950/50 border border-navy-800 flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] text-gray-400 uppercase font-semibold">Hardware Accelerator</p>
+                  <span className="text-xs font-semibold text-white">NVIDIA A100 Tensor</span>
                 </div>
+                <span className="text-[10px] font-mono text-cyan-400 font-bold">Optimal</span>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
