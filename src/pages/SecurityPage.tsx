@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { Shield, Lock, Clock, Fingerprint, Link2, Brain, Save } from 'lucide-react'
 import { PageHeader, GlassCard, TabGroup } from '../components/ui'
 
@@ -131,7 +131,8 @@ export default function SecurityPage() {
             <Link2 className="w-4 h-4 text-navy-800" /> Blockchain Configuration
           </h3>
           {[
-            { label: 'Network', value: 'Hyperledger Fabric v2.5' },
+            { label: 'Network', value: 'Polygon Amoy Testnet (Chain ID 80002)' },
+
             { label: 'Channel', value: 'evidence-channel' },
             { label: 'Chaincode', value: 'evidence-portal-v2' },
             { label: 'IPFS Gateway', value: 'https://ipfs.evidenceportal.gov.in' },

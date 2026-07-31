@@ -70,7 +70,7 @@ export default function BlockchainPage() {
     <div className="space-y-6 animate-in">
       <PageHeader
         title="Blockchain Module"
-        subtitle="Hyperledger Fabric immutable evidence registration and verification"
+        subtitle="Polygon Amoy Testnet immutable smart contract evidence registration and verification"
         actions={id && (
           <Link to="/blockchain" className="cyber-btn-secondary">
             <ArrowLeft className="w-4 h-4" /> All Records
@@ -83,7 +83,7 @@ export default function BlockchainPage() {
           {evidenceListState.map((ev) => (
             <Link key={ev.id} to={`/blockchain/${ev.id}`} className="glass-card-hover !p-4">
               <p className="font-mono text-navy-800 text-xs">{ev.evidenceId}</p>
-              <p className="text-xs text-navy-700 mt-1 font-mono">{truncateHash(ev.blockchainTxId, 10)}</p>
+              <p className="text-xs text-navy-700 mt-1 font-mono">{truncateHash(ev.transactionHash || ev.blockchainTxId, 10)}</p>
               <p className="text-xs text-navy-600 mt-1">Block #{ev.blockNumber}</p>
             </Link>
           ))}
@@ -131,23 +131,28 @@ export default function BlockchainPage() {
           <CheckCircle className="w-5 h-5 text-emerald-400" />
           <div>
             <p className="text-sm text-emerald-400 font-medium">Verification Status: Valid</p>
-            <p className="text-xs text-navy-700">Hash integrity confirmed • Digital signature valid • No tampering detected</p>
+            <p className="text-xs text-navy-700">Hash integrity confirmed • Polygon Amoy contract state verified • No tampering detected</p>
           </div>
         </div>
 
-        <button className="cyber-btn-primary w-full mt-4">
-          <ExternalLink className="w-4 h-4" /> View Blockchain Transaction
-        </button>
+        <a
+          href={`https://amoy.polygonscan.com/tx/${evidence.transactionHash || evidence.blockchainTxId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="cyber-btn-primary w-full mt-4 flex items-center justify-center gap-2"
+        >
+          <ExternalLink className="w-4 h-4" /> View Polygonscan Transaction
+        </a>
       </GlassCard>
 
       <GlassCard>
         <h3 className="text-sm font-semibold text-navy-900 mb-4">Network Information</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Network', value: 'Hyperledger Fabric' },
-            { label: 'Channel', value: 'evidence-channel' },
-            { label: 'Chaincode', value: 'evidence-portal-v2' },
-            { label: 'Consensus', value: 'Raft (CFT)' },
+            { label: 'Network', value: evidence.network || 'Polygon Amoy Testnet' },
+            { label: 'Chain ID', value: '80002' },
+            { label: 'Smart Contract', value: 'EvidenceRegistry.sol' },
+            { label: 'Consensus', value: 'Proof of Stake (PoS)' },
           ].map((item) => (
             <div key={item.label} className="p-3 rounded-lg bg-cyber-800/30 border border-glass-border/50 text-center">
               <p className="text-[10px] text-navy-600 uppercase">{item.label}</p>
@@ -156,6 +161,7 @@ export default function BlockchainPage() {
           ))}
         </div>
       </GlassCard>
+
     </div>
   )
 }

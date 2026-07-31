@@ -63,9 +63,14 @@ model Evidence {
   trustLevel        String   @default("needs_review")
   status            String   @default("ai_review")
   blockchainTxId    String?
+  transactionHash   String?
   blockNumber       Int?
+  contractAddress   String?
+  network           String?  @default("Polygon Amoy Testnet")
+  gasUsed           String?
   digitalSignature  String?
   currentOwner      String   @default("Rajesh Kumar")
+
   currentDepartment String   @default("Cyber Crime Cell, Delhi Police")
   lastAccess        DateTime @default(now())
   aiAnalysis        Json?

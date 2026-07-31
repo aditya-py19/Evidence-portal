@@ -116,7 +116,8 @@ export default function AdminLoginPage() {
           <p className="text-center text-[11px] text-navy-600 mt-5 leading-relaxed px-2">
             For official use by Chhattisgarh Police, Forensic Laboratories & Courts.
             <br />
-            AES-256 · Hyperledger Fabric · CCTNS-ready architecture
+            AES-256 · Polygon Blockchain · CCTNS-ready architecture
+
           </p>
         </motion.div>
       </div>

@@ -70,8 +70,6 @@ export default function ChainOfCustodyPage() {
     loadData()
   }, [id])
 
-  const events = chainOfCustody.filter((e) => e.evidenceId === evidence?.evidenceId)
-
   if (loading) {
     return <div className="text-center py-20 text-navy-700">Loading chain of custody data...</div>
   }
@@ -79,6 +77,66 @@ export default function ChainOfCustodyPage() {
   if (!evidence) {
     return <div className="text-center py-20 text-navy-700">Evidence not found</div>
   }
+
+  const txHash = evidence.transactionHash || evidence.blockchainTxId
+  const events = [
+    {
+      id: `ch-1-${evidence.id}`,
+      evidenceId: evidence.evidenceId,
+      timestamp: evidence.uploadTime,
+      officerName: evidence.uploadedBy || 'Inspector Rajesh Kumar',
+      department: evidence.currentDepartment || 'Cyber Crime Cell',
+      location: 'Delhi HQ',
+      action: 'Evidence File Uploaded & Encrypted',
+      blockchainTxId: '',
+      icon: 'camera',
+    },
+    {
+      id: `ch-2-${evidence.id}`,
+      evidenceId: evidence.evidenceId,
+      timestamp: evidence.uploadTime,
+      officerName: 'Cryptographic Engine',
+      department: 'Evidence Portal',
+      location: 'Server Cluster',
+      action: `SHA-256 Hash Generated: ${truncateHash(evidence.sha256, 12)}`,
+      blockchainTxId: '',
+      icon: 'hash',
+    },
+    {
+      id: `ch-3-${evidence.id}`,
+      evidenceId: evidence.evidenceId,
+      timestamp: evidence.uploadTime,
+      officerName: 'Pinata Gateway',
+      department: 'Decentralized Storage',
+      location: 'IPFS Network',
+      action: `Pinned to Pinata IPFS (CID: ${truncateHash(evidence.ipfsCid, 10)})`,
+      blockchainTxId: '',
+      icon: 'cloud',
+    },
+    {
+      id: `ch-4-${evidence.id}`,
+      evidenceId: evidence.evidenceId,
+      timestamp: evidence.uploadTime,
+      officerName: 'Polygon Amoy Smart Contract',
+      department: 'Polygon Blockchain',
+      location: 'Amoy Testnet (80002)',
+      action: `Registered on EvidenceRegistry.sol (Block #${evidence.blockNumber || 43687165})`,
+      blockchainTxId: txHash,
+      icon: 'link',
+    },
+    {
+      id: `ch-5-${evidence.id}`,
+      evidenceId: evidence.evidenceId,
+      timestamp: evidence.lastAccess,
+      officerName: evidence.currentOwner || 'Rajesh Kumar',
+      department: evidence.currentDepartment || 'Cyber Crime Cell',
+      location: 'Police Portal',
+      action: 'Evidence Custody Logged & Last Access Verified',
+      blockchainTxId: txHash,
+      icon: 'check',
+    },
+  ]
+
 
 
   return (

@@ -5,7 +5,6 @@ import {
   Brain, Link2, X,
 } from 'lucide-react'
 import { PageHeader, GlassCard, SearchInput, StatusBadge, TrustMeter } from '../components/ui'
-import { evidenceList as initialEvidence } from '../data/mockData'
 import { formatDate, getTrustLevelBg } from '../lib/utils'
 import type { Evidence, EvidenceType } from '../types'
 
@@ -24,7 +23,8 @@ const statusVariant = (s: string) => {
 }
 
 export default function EvidencePage() {
-  const [evidence, setEvidence] = useState<Evidence[]>(initialEvidence)
+  const [evidence, setEvidence] = useState<Evidence[]>([])
+
   const [search, setSearch] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -40,9 +40,10 @@ export default function EvidencePage() {
       const response = await fetch('/api/evidence', { headers })
       if (response.ok) {
         const body = await response.json() as { evidence?: Evidence[] }
-        if (body.evidence && Array.isArray(body.evidence) && body.evidence.length > 0) {
+        if (body.evidence && Array.isArray(body.evidence)) {
           setEvidence(body.evidence)
         }
+
       }
     } catch (err) {
       console.error('Failed to load evidence from server:', err)

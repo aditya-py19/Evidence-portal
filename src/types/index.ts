@@ -89,8 +89,13 @@ export interface Evidence {
   sha256: string
   ipfsCid: string
   blockchainTxId: string
+  transactionHash?: string
   blockNumber: number
+  contractAddress?: string
+  network?: string
+  gasUsed?: string
   digitalSignature: string
+
   currentOwner: string
   currentDepartment: string
   lastAccess: string

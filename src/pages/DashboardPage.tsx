@@ -1,4 +1,5 @@
-﻿import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   FolderOpen, FileSearch, Brain, AlertTriangle, ShieldCheck,
   Link2, Activity, TrendingUp, Star, Bell,
@@ -9,21 +10,10 @@ import {
 } from 'recharts'
 import { StatCard, GlassCard, PageHeader } from '../components/ui'
 import {
-  dashboardStats, uploadTrendData, riskDistributionData,
+  dashboardStats as defaultStats, uploadTrendData, riskDistributionData,
   caseStatusData, aiDetectionData, recentActivities, notifications,
 } from '../data/mockData'
-
-const statCards = [
-  { label: 'Total Cases', value: dashboardStats.totalCases, icon: <FolderOpen className="w-5 h-5 text-navy-800" />, color: 'cyan', trend: '+12% this month', trendUp: true },
-  { label: 'Active Cases', value: dashboardStats.activeCases, icon: <Activity className="w-5 h-5 text-blue-600" />, color: 'blue', trend: '8 critical', trendUp: false },
-  { label: 'Evidence Uploaded', value: dashboardStats.evidenceUploaded.toLocaleString(), icon: <FileSearch className="w-5 h-5 text-emerald-600" />, color: 'emerald', trend: '+89 this week', trendUp: true },
-  { label: 'Pending AI Reviews', value: dashboardStats.pendingAIReviews, icon: <Brain className="w-5 h-5 text-violet-600" />, color: 'purple', trend: '3 urgent', trendUp: false },
-  { label: 'High Risk Evidence', value: dashboardStats.highRiskEvidence, icon: <AlertTriangle className="w-5 h-5 text-red-600" />, color: 'red', trend: '+2 today', trendUp: false },
-  { label: 'Verified Evidence', value: dashboardStats.verifiedEvidence.toLocaleString(), icon: <ShieldCheck className="w-5 h-5 text-emerald-600" />, color: 'emerald' },
-  { label: 'Avg Trust Score', value: dashboardStats.averageTrustScore, icon: <Star className="w-5 h-5 text-amber-600" />, color: 'amber', trend: '+2.1 pts', trendUp: true },
-  { label: 'Tampering Alerts', value: dashboardStats.tamperingAlerts, icon: <AlertTriangle className="w-5 h-5 text-red-600" />, color: 'red' },
-  { label: 'Blockchain Txs', value: dashboardStats.blockchainTransactions.toLocaleString(), icon: <Link2 className="w-5 h-5 text-navy-800" />, color: 'cyan' },
-]
+import type { Evidence } from '../types'
 
 const chartTooltipStyle = {
   contentStyle: { background: '#ffffff', border: '1px solid #D9E2EC', borderRadius: '8px', fontSize: '12px', color: '#102A43' },
@@ -31,7 +21,46 @@ const chartTooltipStyle = {
 }
 
 export default function DashboardPage() {
+  const [evidenceList, setEvidenceList] = useState<Evidence[]>([])
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const token = localStorage.getItem('evidence-portal-token')
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        const res = await fetch('/api/evidence', { headers })
+        if (res.ok) {
+          const body = await res.json() as { evidence?: Evidence[] }
+          if (body.evidence) setEvidenceList(body.evidence)
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard evidence:', err)
+      }
+    }
+    loadData()
+  }, [])
+
+  const countTotal = evidenceList.length > 0 ? evidenceList.length : defaultStats.evidenceUploaded
+  const countVerified = evidenceList.length > 0 ? evidenceList.filter((e) => e.trustScore >= 70).length : defaultStats.verifiedEvidence
+  const countBlockchain = evidenceList.length > 0 ? evidenceList.filter((e) => Boolean(e.transactionHash || e.blockchainTxId)).length : defaultStats.blockchainTransactions
+  const avgScore = evidenceList.length > 0 ? Math.round(evidenceList.reduce((acc, curr) => acc + curr.trustScore, 0) / evidenceList.length) : defaultStats.averageTrustScore
+
+  const statCards = [
+    { label: 'Total Cases', value: defaultStats.totalCases, icon: <FolderOpen className="w-5 h-5 text-navy-800" />, color: 'cyan', trend: '+12% this month', trendUp: true },
+    { label: 'Active Cases', value: defaultStats.activeCases, icon: <Activity className="w-5 h-5 text-blue-600" />, color: 'blue', trend: '8 critical', trendUp: false },
+    { label: 'Evidence Uploaded', value: countTotal.toLocaleString(), icon: <FileSearch className="w-5 h-5 text-emerald-600" />, color: 'emerald', trend: '+89 this week', trendUp: true },
+    { label: 'Pending AI Reviews', value: defaultStats.pendingAIReviews, icon: <Brain className="w-5 h-5 text-violet-600" />, color: 'purple', trend: '3 urgent', trendUp: false },
+    { label: 'High Risk Evidence', value: defaultStats.highRiskEvidence, icon: <AlertTriangle className="w-5 h-5 text-red-600" />, color: 'red', trend: '+2 today', trendUp: false },
+    { label: 'Verified Evidence', value: countVerified.toLocaleString(), icon: <ShieldCheck className="w-5 h-5 text-emerald-600" />, color: 'emerald' },
+    { label: 'Avg Trust Score', value: avgScore, icon: <Star className="w-5 h-5 text-amber-600" />, color: 'amber', trend: '+2.1 pts', trendUp: true },
+    { label: 'Tampering Alerts', value: defaultStats.tamperingAlerts, icon: <AlertTriangle className="w-5 h-5 text-red-600" />, color: 'red' },
+    { label: 'Polygon Amoy Txs', value: countBlockchain.toLocaleString(), icon: <Link2 className="w-5 h-5 text-navy-800" />, color: 'cyan' },
+  ]
+
   const unreadNotifications = notifications.filter((n) => !n.read).slice(0, 5)
+
 
   return (
     <div className="space-y-6 animate-in">

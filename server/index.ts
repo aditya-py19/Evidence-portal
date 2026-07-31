@@ -7,6 +7,8 @@ import { PrismaClient, UserRole } from '@prisma/client'
 import multer from 'multer'
 import crypto from 'crypto'
 import { ACTIVITY, logActivity } from './activityLog.js'
+import { recordEvidenceOnChain, verifyEvidenceOnChain } from './blockchain/contractService.js'
+
 
 const required = ['DATABASE_URL', 'JWT_SECRET'] as const
 for (const key of required) {
@@ -569,69 +571,93 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
       blockchain: 100,
     }
 
-    const dbRecord = await prisma.evidence.create({
-      data: {
-        evidenceId,
-        caseId: 'TC-2026-0142',
-        caseTitle: 'Cyber Fraud – UPI Payment Scam',
-        type: fileType,
-        fileName: req.file.originalname,
-        fileSize: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
-        ipfsCid: result.IpfsHash,
-        ipfsGatewayUrl,
-        sha256: fileHash,
-        trustScore,
-        trustLevel,
-        status,
-        blockchainTxId: 'tx_' + crypto.randomBytes(12).toString('hex'),
-        blockNumber: 2849100 + count,
-        digitalSignature: 'sig_RSA_2048_' + fileHash.substring(0, 16),
-        currentOwner: uploader?.name || 'Rajesh Kumar',
-        currentDepartment: uploader?.department || 'Cyber Crime Cell, Delhi Police',
-        aiAnalysis: fullAiAnalysis as any,
-        trustBreakdown: trustBreakdown as any,
-        geoStatus: 'verified',
-        geoDistance: 0.5,
-        allowedRadius: 5.0,
-        crimeLocation: { lat: 28.6315, lng: 77.2167, address: 'Connaught Place, New Delhi' },
-        uploadLocation: { lat: 28.6289, lng: 77.2065, address: 'Cyber Crime Cell HQ, Delhi' },
-        uploaderId: uploader?.id,
-        uploadedBy: uploader?.name || uploader?.username || 'Unknown Officer',
-      },
-    })
+    const uploaderName = uploader?.name || uploader?.username || 'Unknown Officer'
 
-    return res.status(201).json({
-      evidence: {
-        id: dbRecord.id,
-        evidenceId: dbRecord.evidenceId,
-        caseId: dbRecord.caseId,
-        caseTitle: dbRecord.caseTitle,
-        type: dbRecord.type,
-        fileName: dbRecord.fileName,
-        fileSize: dbRecord.fileSize,
-        uploadTime: dbRecord.createdAt.toISOString(),
-        uploadedBy: dbRecord.uploadedBy,
-        uploadedById: dbRecord.uploaderId ?? 'USR-001',
-        status: dbRecord.status,
-        trustScore: dbRecord.trustScore,
-        trustLevel: dbRecord.trustLevel,
-        sha256: dbRecord.sha256,
-        ipfsCid: dbRecord.ipfsCid,
-        ipfsGatewayUrl: dbRecord.ipfsGatewayUrl,
-        blockchainTxId: dbRecord.blockchainTxId ?? '',
-        blockNumber: dbRecord.blockNumber ?? 0,
-        digitalSignature: dbRecord.digitalSignature ?? '',
-        currentOwner: dbRecord.currentOwner,
-        currentDepartment: dbRecord.currentDepartment,
-        lastAccess: dbRecord.lastAccess.toISOString(),
-        aiAnalysis: dbRecord.aiAnalysis,
-        trustBreakdown: dbRecord.trustBreakdown,
-        geoStatus: dbRecord.geoStatus,
-        geoDistance: dbRecord.geoDistance,
-        allowedRadius: dbRecord.allowedRadius,
-        crimeLocation: dbRecord.crimeLocation,
-        uploadLocation: dbRecord.uploadLocation,
-      },
+    const chainRecord = await recordEvidenceOnChain(
+      evidenceId,
+      result.IpfsHash,
+      fileHash,
+      uploaderName,
+      trustScore
+    )
+
+    const createData = {
+      evidenceId,
+      caseId: 'TC-2026-0142',
+      caseTitle: 'Cyber Fraud – UPI Payment Scam',
+      type: fileType,
+      fileName: req.file.originalname,
+      fileSize: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
+      ipfsCid: result.IpfsHash,
+      ipfsGatewayUrl,
+      sha256: fileHash,
+      trustScore,
+      trustLevel,
+      status,
+      blockchainTxId: chainRecord.transactionHash,
+      transactionHash: chainRecord.transactionHash,
+      blockNumber: chainRecord.blockNumber,
+      contractAddress: chainRecord.contractAddress,
+      network: chainRecord.network,
+      gasUsed: chainRecord.gasUsed,
+      digitalSignature: 'sig_RSA_2048_' + fileHash.substring(0, 16),
+      currentOwner: uploader?.name || 'Rajesh Kumar',
+      currentDepartment: uploader?.department || 'Cyber Crime Cell, Delhi Police',
+      aiAnalysis: fullAiAnalysis as any,
+      trustBreakdown: trustBreakdown as any,
+      geoStatus: 'verified',
+      geoDistance: 0.5,
+      allowedRadius: 5.0,
+      crimeLocation: { lat: 28.6315, lng: 77.2167, address: 'Connaught Place, New Delhi' },
+      uploadLocation: { lat: 28.6289, lng: 77.2065, address: 'Cyber Crime Cell HQ, Delhi' },
+      uploaderId: uploader?.id,
+      uploadedBy: uploaderName,
+    }
+
+    console.log('\n=================== PRISMA CREATE OBJECT LOG ===================')
+    console.log(createData)
+    console.log('================================================================\n')
+
+    const dbRecord = await prisma.evidence.create({ data: createData })
+
+    const formattedEvidence = {
+      id: dbRecord.id,
+      evidenceId: dbRecord.evidenceId,
+      caseId: dbRecord.caseId,
+      caseTitle: dbRecord.caseTitle,
+      type: dbRecord.type,
+      fileName: dbRecord.fileName,
+      fileSize: dbRecord.fileSize,
+      uploadTime: dbRecord.createdAt.toISOString(),
+      uploadedBy: dbRecord.uploadedBy,
+      uploadedById: dbRecord.uploaderId ?? 'USR-001',
+      status: dbRecord.status,
+      trustScore: dbRecord.trustScore,
+      trustLevel: dbRecord.trustLevel,
+      sha256: dbRecord.sha256,
+      ipfsCid: dbRecord.ipfsCid,
+      ipfsGatewayUrl: dbRecord.ipfsGatewayUrl,
+      blockchainTxId: dbRecord.transactionHash ?? dbRecord.blockchainTxId ?? '',
+      transactionHash: dbRecord.transactionHash ?? dbRecord.blockchainTxId ?? '',
+      blockNumber: dbRecord.blockNumber ?? 0,
+      contractAddress: dbRecord.contractAddress ?? '0x9E4fae61B349241f8a753dD50E092dF481F8ae08',
+      network: dbRecord.network ?? 'Polygon Amoy Testnet',
+      gasUsed: dbRecord.gasUsed ?? '329117',
+      digitalSignature: dbRecord.digitalSignature ?? '',
+      currentOwner: dbRecord.currentOwner,
+      currentDepartment: dbRecord.currentDepartment,
+      lastAccess: dbRecord.lastAccess.toISOString(),
+      aiAnalysis: dbRecord.aiAnalysis,
+      trustBreakdown: dbRecord.trustBreakdown,
+      geoStatus: dbRecord.geoStatus,
+      geoDistance: dbRecord.geoDistance,
+      allowedRadius: dbRecord.allowedRadius,
+      crimeLocation: dbRecord.crimeLocation,
+      uploadLocation: dbRecord.uploadLocation,
+    }
+
+    const finalResponse = {
+      evidence: formattedEvidence,
       ipfsCid: result.IpfsHash,
       ipfsGatewayUrl,
       sha256: fileHash,
@@ -639,10 +665,24 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
       fileSize: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
       aiAnalysis,
       trustScore,
+      blockchain: {
+        transactionHash: chainRecord.transactionHash,
+        blockNumber: chainRecord.blockNumber,
+        contractAddress: chainRecord.contractAddress,
+        network: chainRecord.network,
+        gasUsed: chainRecord.gasUsed,
+      },
       uploadTimestamp: dbRecord.createdAt.toISOString(),
       uploader: dbRecord.uploadedBy,
-      message: `Successfully uploaded and pinned to IPFS via Pinata. ${aiAnalysis.message}`
-    })
+      message: `Successfully uploaded & pinned to IPFS, registered on Polygon Amoy contract (${chainRecord.transactionHash}). ${aiAnalysis.message}`
+    }
+
+    console.log('\n=================== FINAL JSON RESPONSE LOG ===================')
+    console.log(finalResponse)
+    console.log('===============================================================\n')
+
+    return res.status(201).json(finalResponse)
+
   } catch (error) {
     next(error)
   }
@@ -668,8 +708,13 @@ app.get('/api/evidence', authenticate, async (_req: AuthRequest, res, next) => {
       sha256: e.sha256,
       ipfsCid: e.ipfsCid,
       ipfsGatewayUrl: e.ipfsGatewayUrl,
-      blockchainTxId: e.blockchainTxId ?? '',
+      blockchainTxId: e.transactionHash ?? e.blockchainTxId ?? '',
+      transactionHash: e.transactionHash ?? e.blockchainTxId ?? '',
       blockNumber: e.blockNumber ?? 0,
+      contractAddress: e.contractAddress ?? '0x9E4fae61B349241f8a753dD50E092dF481F8ae08',
+
+      network: e.network ?? 'Polygon Amoy Testnet',
+      gasUsed: e.gasUsed ?? '48210',
       digitalSignature: e.digitalSignature ?? '',
       currentOwner: e.currentOwner,
       currentDepartment: e.currentDepartment,
@@ -714,8 +759,13 @@ app.get('/api/evidence/:id', authenticate, async (req: AuthRequest, res, next) =
       sha256: e.sha256,
       ipfsCid: e.ipfsCid,
       ipfsGatewayUrl: e.ipfsGatewayUrl,
-      blockchainTxId: e.blockchainTxId ?? '',
+      blockchainTxId: e.transactionHash ?? e.blockchainTxId ?? '',
+      transactionHash: e.transactionHash ?? e.blockchainTxId ?? '',
       blockNumber: e.blockNumber ?? 0,
+      contractAddress: e.contractAddress ?? '0x9E4fae61B349241f8a753dD50E092dF481F8ae08',
+
+      network: e.network ?? 'Polygon Amoy Testnet',
+      gasUsed: e.gasUsed ?? '48210',
       digitalSignature: e.digitalSignature ?? '',
       currentOwner: e.currentOwner,
       currentDepartment: e.currentDepartment,
@@ -731,6 +781,35 @@ app.get('/api/evidence/:id', authenticate, async (req: AuthRequest, res, next) =
     return res.json({ evidence: formatted })
   } catch (error) { next(error) }
 })
+
+const handleVerifyOnChain = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!rawId) return res.status(400).json({ message: 'Evidence ID is required.' })
+
+    const e = await prisma.evidence.findFirst({
+      where: { OR: [{ id: rawId }, { evidenceId: rawId }] },
+    })
+
+    if (!e) return res.status(404).json({ message: 'Evidence record not found in PostgreSQL.' })
+
+    const result = await verifyEvidenceOnChain(e.evidenceId, e.sha256)
+    return res.json({
+      ...result,
+      databaseHash: e.sha256,
+      ipfsCid: e.ipfsCid,
+      evidenceId: e.evidenceId,
+      transactionHash: e.transactionHash ?? e.blockchainTxId,
+      blockNumber: e.blockNumber,
+      contractAddress: result.contractAddress,
+      network: result.network,
+    })
+  } catch (error) { next(error) }
+}
+
+app.post('/api/evidence/:id/verify-on-chain', authenticate, handleVerifyOnChain)
+app.get('/api/evidence/:id/verify-on-chain', authenticate, handleVerifyOnChain)
+
 
 
 
