@@ -6,6 +6,7 @@ import {
   Eye, CheckCircle, AlertTriangle, Database, Activity, RefreshCw, FileSearch, ShieldCheck, Film, Music, Image as ImageIcon, Brain
 } from 'lucide-react'
 import { PageHeader, GlassCard, TrustMeter, StatusBadge, TabGroup } from '../components/ui'
+import { QRShareSection } from '../components/QRShareSection'
 import { formatDate, formatRelativeTime, truncateHash, getTrustLevelLabel, getTrustLevelBg, getTrustLevelColor } from '../lib/utils'
 import type { Evidence, AuditLog } from '../types'
 
@@ -536,21 +537,11 @@ This certificate confirms that the digital evidence payload has been cryptograph
             </div>
           </GlassCard>
 
-          <GlassCard className="text-center space-y-2">
-            <Link to={`/verify/${vToken}`} target="_blank" className="block group">
-              <div className="w-36 h-36 mx-auto bg-white rounded-xl p-2.5 flex items-center justify-center border border-navy-100 shadow-sm group-hover:border-blue-400 transition-all">
-                <QRCode
-                  size={140}
-                  style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                  value={verifyUrl}
-                  viewBox={`0 0 256 256`}
-                />
-              </div>
-              <p className="text-xs font-bold text-navy-900 mt-2 group-hover:text-blue-600 transition-colors flex items-center justify-center gap-1">
-                <QrCode className="w-3.5 h-3.5" /> Self-Contained SVG QR (Live Link)
-              </p>
-            </Link>
-            <p className="text-[10px] text-navy-600 font-mono truncate">Token: {vToken}</p>
+          <GlassCard className="text-center space-y-3">
+            <h4 className="text-xs font-bold text-navy-900 uppercase tracking-wider border-b border-navy-100 pb-2">
+              Verification QR & Sharing
+            </h4>
+            <QRShareSection verificationToken={vToken} caseId={evidence.caseId} evidenceId={evidence.evidenceId} />
           </GlassCard>
 
           <GlassCard className="space-y-3">

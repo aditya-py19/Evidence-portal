@@ -6,6 +6,7 @@ import {
   FileText, Shield, User, Lock, AlertTriangle, ArrowLeft, QrCode, Loader2
 } from 'lucide-react'
 import { GlassCard, TrustMeter, StatusBadge } from '../components/ui'
+import { QRShareSection } from '../components/QRShareSection'
 import { formatDate, truncateHash } from '../lib/utils'
 
 export default function PublicCaseVerificationPage() {
@@ -235,18 +236,11 @@ export default function PublicCaseVerificationPage() {
             <p className="text-xs font-bold text-navy-900">Multivariable Evidence Trust Score</p>
           </GlassCard>
 
-          {/* Dynamic SVG QR Code Component (No External API) */}
           <GlassCard className="text-center space-y-3">
-            <div className="w-36 h-36 mx-auto bg-white rounded-xl p-2.5 border border-navy-100 shadow-sm flex items-center justify-center">
-              <QRCode
-                size={140}
-                style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                value={verifyUrl}
-                viewBox={`0 0 256 256`}
-              />
-            </div>
-            <p className="text-xs font-bold text-navy-900">In-App SVG QR Code</p>
-            <p className="text-[10px] text-navy-600 font-mono">Token: {data.verificationToken}</p>
+            <h4 className="text-xs font-bold text-navy-900 uppercase tracking-wider border-b border-navy-100 pb-2">
+              Verification QR & Sharing
+            </h4>
+            <QRShareSection verificationToken={data.verificationToken} caseId={data.caseId} evidenceId={data.evidenceSummary?.items?.[0]?.evidenceId} />
           </GlassCard>
 
           <GlassCard className="space-y-3 text-xs">
