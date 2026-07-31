@@ -1,13 +1,59 @@
-﻿import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, Link } from 'react-router-dom'
 import { Link2, Copy, ExternalLink, Shield, Hash, ArrowLeft, CheckCircle } from 'lucide-react'
 import { PageHeader, GlassCard, StatusBadge } from '../components/ui'
-import { evidenceList } from '../data/mockData'
 import { formatDate, truncateHash } from '../lib/utils'
+import type { Evidence } from '../types'
 
 export default function BlockchainPage() {
   const { id } = useParams()
-  const evidence = id ? evidenceList.find((e) => e.id === id) : evidenceList[0]
+  const [evidenceListState, setEvidenceListState] = useState<Evidence[]>([])
+  const [evidence, setEvidence] = useState<Evidence | null>(null)
+  const [loading, setLoading] = useState(true)
 
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true)
+      try {
+        const token = localStorage.getItem('evidence-portal-token')
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        if (id) {
+          const res = await fetch(`/api/evidence/${id}`, { headers })
+          if (res.ok) {
+            const body = await res.json() as { evidence?: Evidence }
+            if (body.evidence) {
+              setEvidence(body.evidence)
+              setLoading(false)
+              return
+            }
+          }
+        }
+
+        const resAll = await fetch('/api/evidence', { headers })
+        if (resAll.ok) {
+          const bodyAll = await resAll.json() as { evidence?: Evidence[] }
+          if (bodyAll.evidence && bodyAll.evidence.length > 0) {
+            setEvidenceListState(bodyAll.evidence)
+            if (id) {
+              const found = bodyAll.evidence.find((e) => e.id === id || e.evidenceId === id)
+              setEvidence(found || null)
+            } else {
+              setEvidence(bodyAll.evidence[0])
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load blockchain evidence:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [id])
+
+  if (loading) return <div className="text-center py-20 text-navy-700">Loading blockchain record...</div>
   if (!evidence) return <div className="text-center py-20 text-navy-700">Evidence not found</div>
 
   const fields = [
@@ -15,9 +61,10 @@ export default function BlockchainPage() {
     { label: 'IPFS Content ID (CID)', value: evidence.ipfsCid, icon: Link2 },
     { label: 'Blockchain Transaction ID', value: evidence.blockchainTxId, icon: Link2 },
     { label: 'Digital Signature', value: evidence.digitalSignature, icon: Shield },
-    { label: 'Block Number', value: `#${evidence.blockNumber.toLocaleString()}`, icon: Hash },
+    { label: 'Block Number', value: `#${evidence.blockNumber?.toLocaleString() ?? 'N/A'}`, icon: Hash },
     { label: 'Timestamp', value: formatDate(evidence.uploadTime), icon: Link2 },
   ]
+
 
   return (
     <div className="space-y-6 animate-in">
@@ -31,9 +78,9 @@ export default function BlockchainPage() {
         )}
       />
 
-      {!id && (
+      {!id && evidenceListState.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {evidenceList.map((ev) => (
+          {evidenceListState.map((ev) => (
             <Link key={ev.id} to={`/blockchain/${ev.id}`} className="glass-card-hover !p-4">
               <p className="font-mono text-navy-800 text-xs">{ev.evidenceId}</p>
               <p className="text-xs text-navy-700 mt-1 font-mono">{truncateHash(ev.blockchainTxId, 10)}</p>

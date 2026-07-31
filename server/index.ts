@@ -686,6 +686,53 @@ app.get('/api/evidence', authenticate, async (_req: AuthRequest, res, next) => {
   } catch (error) { next(error) }
 })
 
+app.get('/api/evidence/:id', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!rawId) return res.status(400).json({ message: 'Evidence ID is required.' })
+
+    const e = await prisma.evidence.findFirst({
+      where: { OR: [{ id: rawId }, { evidenceId: rawId }] },
+    })
+
+    if (!e) return res.status(404).json({ message: 'Evidence not found.' })
+
+    const formatted = {
+      id: e.id,
+      evidenceId: e.evidenceId,
+      caseId: e.caseId,
+      caseTitle: e.caseTitle,
+      type: e.type,
+      fileName: e.fileName,
+      fileSize: e.fileSize,
+      uploadTime: e.createdAt.toISOString(),
+      uploadedBy: e.uploadedBy,
+      uploadedById: e.uploaderId ?? 'USR-001',
+      status: e.status,
+      trustScore: e.trustScore,
+      trustLevel: e.trustLevel,
+      sha256: e.sha256,
+      ipfsCid: e.ipfsCid,
+      ipfsGatewayUrl: e.ipfsGatewayUrl,
+      blockchainTxId: e.blockchainTxId ?? '',
+      blockNumber: e.blockNumber ?? 0,
+      digitalSignature: e.digitalSignature ?? '',
+      currentOwner: e.currentOwner,
+      currentDepartment: e.currentDepartment,
+      lastAccess: e.lastAccess.toISOString(),
+      aiAnalysis: e.aiAnalysis,
+      trustBreakdown: e.trustBreakdown,
+      geoStatus: e.geoStatus,
+      geoDistance: e.geoDistance,
+      allowedRadius: e.allowedRadius,
+      crimeLocation: e.crimeLocation,
+      uploadLocation: e.uploadLocation,
+    }
+    return res.json({ evidence: formatted })
+  } catch (error) { next(error) }
+})
+
+
 
 app.get('/api/users', authenticate, administratorsOnly, async (_req, res, next) => {
   try {

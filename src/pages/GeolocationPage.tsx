@@ -1,10 +1,10 @@
-import { useParams, Link } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
+import { useParams, Link } from 'react-router-dom'
 import { MapPin, Navigation, CheckCircle, AlertTriangle, XCircle, ArrowLeft, RotateCcw, Search, LoaderCircle } from 'lucide-react'
 import { PageHeader, GlassCard, StatusBadge } from '../components/ui'
-import { evidenceList } from '../data/mockData'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import type { Evidence } from '../types'
 
 const geoConfig = {
   verified: { icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-500/10 border-emerald-500/30', label: 'Verified', variant: 'success' as const },
@@ -37,9 +37,55 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 
 export default function GeolocationPage() {
   const { id } = useParams()
-  const evidence = id ? evidenceList.find((e) => e.id === id) : evidenceList[0]
+  const [evidenceListState, setEvidenceListState] = useState<Evidence[]>([])
+  const [evidence, setEvidence] = useState<Evidence | null>(null)
+  const [loading, setLoading] = useState(true)
 
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true)
+      try {
+        const token = localStorage.getItem('evidence-portal-token')
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        if (id) {
+          const res = await fetch(`/api/evidence/${id}`, { headers })
+          if (res.ok) {
+            const body = await res.json() as { evidence?: Evidence }
+            if (body.evidence) {
+              setEvidence(body.evidence)
+              setLoading(false)
+              return
+            }
+          }
+        }
+
+        const resAll = await fetch('/api/evidence', { headers })
+        if (resAll.ok) {
+          const bodyAll = await resAll.json() as { evidence?: Evidence[] }
+          if (bodyAll.evidence && bodyAll.evidence.length > 0) {
+            setEvidenceListState(bodyAll.evidence)
+            if (id) {
+              const found = bodyAll.evidence.find((e) => e.id === id || e.evidenceId === id)
+              setEvidence(found || null)
+            } else {
+              setEvidence(bodyAll.evidence[0])
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load geolocation evidence:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [id])
+
+  if (loading) return <div className="text-center py-20 text-navy-700">Loading geolocation verification...</div>
   if (!evidence) return <div className="text-center py-20 text-navy-700">Evidence not found</div>
+
 
   const [crimeLoc, setCrimeLoc] = useState({
     lat: evidence.crimeLocation.lat,
@@ -301,15 +347,16 @@ export default function GeolocationPage() {
         }
       />
 
-      {!id && (
+      {!id && evidenceListState.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {evidenceList.map((ev) => {
+          {evidenceListState.map((ev) => {
             const evDist = ev.id === evidence.id ? distance : ev.geoDistance
             const evStatus = ev.id === evidence.id ? dynamicStatus : ev.geoStatus
+            const variant = geoConfig[evStatus as keyof typeof geoConfig]?.variant ?? 'info'
             return (
               <Link key={ev.id} to={`/geolocation/${ev.id}`} className="glass-card-hover !p-4">
                 <p className="font-mono text-navy-800 text-xs">{ev.evidenceId}</p>
-                <StatusBadge status={evStatus.replace('_', ' ')} variant={geoConfig[evStatus].variant} />
+                <StatusBadge status={evStatus.replace('_', ' ')} variant={variant} />
                 <p className="text-xs text-navy-700 mt-2">Distance: {evDist} km</p>
               </Link>
             )

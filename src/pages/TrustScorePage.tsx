@@ -1,8 +1,9 @@
-﻿import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, Link } from 'react-router-dom'
 import { Star, ArrowLeft, Shield, CheckCircle } from 'lucide-react'
 import { PageHeader, GlassCard, TrustMeter } from '../components/ui'
-import { evidenceList } from '../data/mockData'
 import { getTrustLevelLabel, getTrustLevelColor, getTrustLevelBg, generateStars } from '../lib/utils'
+import type { Evidence } from '../types'
 
 const breakdownLabels: Record<string, string> = {
   aiVerification: 'AI Verification',
@@ -16,8 +17,56 @@ const breakdownLabels: Record<string, string> = {
 
 export default function TrustScorePage() {
   const { id } = useParams()
-  const evidence = id ? evidenceList.find((e) => e.id === id) : null
-  const items = evidence ? [evidence] : evidenceList
+  const [evidenceListState, setEvidenceListState] = useState<Evidence[]>([])
+  const [evidence, setEvidence] = useState<Evidence | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true)
+      try {
+        const token = localStorage.getItem('evidence-portal-token')
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        if (id) {
+          const res = await fetch(`/api/evidence/${id}`, { headers })
+          if (res.ok) {
+            const body = await res.json() as { evidence?: Evidence }
+            if (body.evidence) {
+              setEvidence(body.evidence)
+              setLoading(false)
+              return
+            }
+          }
+        }
+
+        const resAll = await fetch('/api/evidence', { headers })
+        if (resAll.ok) {
+          const bodyAll = await resAll.json() as { evidence?: Evidence[] }
+          if (bodyAll.evidence) {
+            setEvidenceListState(bodyAll.evidence)
+            if (id) {
+              const found = bodyAll.evidence.find((e) => e.id === id || e.evidenceId === id)
+              setEvidence(found || null)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load trust score evidence:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [id])
+
+  const items = evidence ? [evidence] : evidenceListState
+
+  if (loading && id && !evidence) {
+    return <div className="text-center py-20 text-navy-700">Loading trust score data...</div>
+  }
+
 
   return (
     <div className="space-y-6 animate-in">

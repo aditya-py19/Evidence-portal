@@ -1,11 +1,13 @@
-﻿import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, Link } from 'react-router-dom'
 import {
   Camera, Brain, CheckCircle, Hash, Lock, Cloud, Link2,
   Eye, ArrowRightLeft, FileText, Gavel, Archive, ArrowLeft,
 } from 'lucide-react'
 import { PageHeader, GlassCard } from '../components/ui'
-import { chainOfCustody, evidenceList } from '../data/mockData'
+import { chainOfCustody } from '../data/mockData'
 import { formatDate, truncateHash } from '../lib/utils'
+import type { Evidence } from '../types'
 
 const iconMap: Record<string, React.ReactNode> = {
   camera: <Camera className="w-4 h-4" />,
@@ -24,8 +26,60 @@ const iconMap: Record<string, React.ReactNode> = {
 
 export default function ChainOfCustodyPage() {
   const { id } = useParams()
-  const evidence = id ? evidenceList.find((e) => e.id === id) : evidenceList[0]
+  const [evidence, setEvidence] = useState<Evidence | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true)
+      try {
+        const token = localStorage.getItem('evidence-portal-token')
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        if (id) {
+          const res = await fetch(`/api/evidence/${id}`, { headers })
+          if (res.ok) {
+            const body = await res.json() as { evidence?: Evidence }
+            if (body.evidence) {
+              setEvidence(body.evidence)
+              setLoading(false)
+              return
+            }
+          }
+        }
+
+        const resAll = await fetch('/api/evidence', { headers })
+        if (resAll.ok) {
+          const bodyAll = await resAll.json() as { evidence?: Evidence[] }
+          if (bodyAll.evidence && bodyAll.evidence.length > 0) {
+            if (id) {
+              const found = bodyAll.evidence.find((e) => e.id === id || e.evidenceId === id)
+              setEvidence(found || null)
+            } else {
+              setEvidence(bodyAll.evidence[0])
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load chain of custody evidence:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [id])
+
   const events = chainOfCustody.filter((e) => e.evidenceId === evidence?.evidenceId)
+
+  if (loading) {
+    return <div className="text-center py-20 text-navy-700">Loading chain of custody data...</div>
+  }
+
+  if (!evidence) {
+    return <div className="text-center py-20 text-navy-700">Evidence not found</div>
+  }
+
 
   return (
     <div className="space-y-6 animate-in">

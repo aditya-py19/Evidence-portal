@@ -1,10 +1,11 @@
-﻿import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, Link } from 'react-router-dom'
 import {
   Brain, CheckCircle, AlertTriangle, XCircle, ArrowLeft,
   Eye, Fingerprint, Copy, Video, Image, FileSearch,
 } from 'lucide-react'
 import { PageHeader, GlassCard, StatusBadge } from '../components/ui'
-import { evidenceList } from '../data/mockData'
+import type { Evidence } from '../types'
 
 const analysisItems = [
   { key: 'deepfakeDetection', label: 'Deepfake Detection', icon: Video },
@@ -24,13 +25,61 @@ const recConfig = {
 
 export default function AIVerificationPage() {
   const { id } = useParams()
-  const routedEvidence = (window.history.state?.usr as { evidence?: typeof evidenceList[number] } | undefined)?.evidence
-  const evidence = id ? (routedEvidence?.id === id ? routedEvidence : evidenceList.find((e) => e.id === id)) : null
-  const items = evidence ? [evidence] : evidenceList
+  const routedEvidence = (window.history.state?.usr as { evidence?: Evidence } | undefined)?.evidence
+  const [evidenceListState, setEvidenceListState] = useState<Evidence[]>([])
+  const [evidence, setEvidence] = useState<Evidence | null>(routedEvidence ?? null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true)
+      try {
+        const token = localStorage.getItem('evidence-portal-token')
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        if (id && !routedEvidence) {
+          const res = await fetch(`/api/evidence/${id}`, { headers })
+          if (res.ok) {
+            const body = await res.json() as { evidence?: Evidence }
+            if (body.evidence) {
+              setEvidence(body.evidence)
+              setLoading(false)
+              return
+            }
+          }
+        }
+
+        const resAll = await fetch('/api/evidence', { headers })
+        if (resAll.ok) {
+          const bodyAll = await resAll.json() as { evidence?: Evidence[] }
+          if (bodyAll.evidence) {
+            setEvidenceListState(bodyAll.evidence)
+            if (id && !evidence) {
+              const found = bodyAll.evidence.find((e) => e.id === id || e.evidenceId === id)
+              setEvidence(found || null)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load AI verification evidence:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [id, routedEvidence])
+
+  const items = evidence ? [evidence] : evidenceListState
+
+  if (loading && id && !evidence) {
+    return <div className="text-center py-20 text-navy-700">Loading AI analysis...</div>
+  }
 
   if (id && !evidence) {
     return <div className="text-center py-20 text-navy-700">Evidence not found</div>
   }
+
 
   return (
     <div className="space-y-6 animate-in">
