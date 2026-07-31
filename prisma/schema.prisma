@@ -41,7 +41,9 @@ model ActivityLog {
   activity  String
   username  String
   role      UserRole
-  ipAddress String   @default("unknown")
+  target    String   @default("System")
+  severity  String   @default("info")
+  ipAddress String   @default("127.0.0.1")
   details   String?
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)

@@ -182,6 +182,79 @@ async function main() {
       await prisma.notification.create({ data: notif })
     }
   }
+
+  const existingLogs = await prisma.activityLog.count()
+  if (existingLogs === 0) {
+    const initialLogs = [
+      {
+        activity: 'USER_LOGIN',
+        username: 'portal.admin',
+        role: UserRole.administrator,
+        target: 'System Auth',
+        severity: 'info',
+        ipAddress: '10.0.4.12',
+        details: 'Admin authenticated successfully via Portal Credentials',
+      },
+      {
+        activity: 'EVIDENCE_UPLOAD',
+        username: 'Rajesh Kumar',
+        role: UserRole.police_officer,
+        target: 'EVD-TC-2026-0142-001',
+        severity: 'info',
+        ipAddress: '10.0.4.12',
+        details: 'Evidence file phishing_screenshot_01.png uploaded to case TC-2026-0142',
+      },
+      {
+        activity: 'SHA256_GENERATION',
+        username: 'Rajesh Kumar',
+        role: UserRole.police_officer,
+        target: 'EVD-TC-2026-0142-001',
+        severity: 'info',
+        ipAddress: '10.0.4.12',
+        details: 'Cryptographic SHA-256 computed: a3f5c8d9e2b1a7f4c6d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9',
+      },
+      {
+        activity: 'IPFS_PIN',
+        username: 'System Automated',
+        role: UserRole.administrator,
+        target: 'Pinata Gateway',
+        severity: 'info',
+        ipAddress: '10.0.4.12',
+        details: 'Pinned payload to IPFS CID: QmX7bK9nR2pL4mJ8vF3hW6tY1sA5dG0cE9uI2oP7qN4rT6',
+      },
+      {
+        activity: 'BLOCKCHAIN_REGISTER',
+        username: 'System Automated',
+        role: UserRole.administrator,
+        target: 'Polygon Amoy',
+        severity: 'info',
+        ipAddress: '10.0.4.12',
+        details: 'Executed addEvidence() on EvidenceRegistry 0x9E4fae61... Tx: 0xf7676213... Block #43686774',
+      },
+      {
+        activity: 'AI_VERIFICATION',
+        username: 'Sightengine AI',
+        role: UserRole.forensic_expert,
+        target: 'EVD-TC-2026-0142-001',
+        severity: 'info',
+        ipAddress: '10.0.4.12',
+        details: 'Deepfake & Forgery detection completed. Computed Trust Score: 96',
+      },
+      {
+        activity: 'TAMPERING_FLAGGED',
+        username: 'Sightengine AI',
+        role: UserRole.forensic_expert,
+        target: 'EVD-TC-2026-0138-003',
+        severity: 'critical',
+        ipAddress: '10.0.4.18',
+        details: 'Video frame manipulation detected in cctv_footage_ringroad.mp4 (Risk Score: 78)',
+      },
+    ]
+
+    for (const log of initialLogs) {
+      await prisma.activityLog.create({ data: log })
+    }
+  }
 }
 
 main().finally(() => prisma.$disconnect())

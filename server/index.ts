@@ -645,6 +645,58 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
       console.error('Failed to create upload notification:', notifErr)
     }
 
+    // Auto-create audit activity logs (Append-Only)
+    try {
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.EVIDENCE_UPLOADED,
+        username: dbRecord.uploadedBy,
+        role: userRole,
+        target: dbRecord.evidenceId,
+        severity: 'info',
+        userId: req.auth?.userId,
+        details: `Uploaded evidence file ${req.file.originalname} (${dbRecord.fileSize})`,
+      })
+
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.SHA256_GENERATED,
+        username: dbRecord.uploadedBy,
+        role: userRole,
+        target: dbRecord.evidenceId,
+        severity: 'info',
+        userId: req.auth?.userId,
+        details: `Computed SHA-256 Checksum: ${fileHash}`,
+      })
+
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.IPFS_PINNED,
+        username: 'System Automated',
+        role: UserRole.administrator,
+        target: 'Pinata Gateway',
+        severity: 'info',
+        details: `Pinned payload to IPFS CID: ${result.IpfsHash}`,
+      })
+
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.BLOCKCHAIN_REGISTERED,
+        username: 'System Automated',
+        role: UserRole.administrator,
+        target: 'Polygon Amoy',
+        severity: 'info',
+        details: `Executed addEvidence() on EvidenceRegistry 0x9E4fae61... Tx: ${chainRecord.transactionHash} (Block #${chainRecord.blockNumber})`,
+      })
+
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.AI_VERIFICATION_COMPLETE,
+        username: 'Sightengine AI',
+        role: UserRole.forensic_expert,
+        target: dbRecord.evidenceId,
+        severity: 'info',
+        details: `Completed AI neural classification. Trust Score: ${trustScore}`,
+      })
+    } catch (auditErr) {
+      console.error('Failed to create audit activity log entries:', auditErr)
+    }
+
     const formattedEvidence = {
       id: dbRecord.id,
       evidenceId: dbRecord.evidenceId,
@@ -753,6 +805,123 @@ app.patch('/api/notifications/read-all', authenticate, async (_req: AuthRequest,
     next(error)
   }
 })
+
+// Audit Logs Security Middleware (Disable PUT, POST, PATCH, DELETE for audit logs - HTTP 403 Forbidden)
+app.use('/api/audit-logs', (req, res, next) => {
+  if (['PUT', 'POST', 'PATCH', 'DELETE'].includes(req.method) && !req.path.includes('/export')) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Audit logs are immutable append-only records and cannot be edited or deleted to preserve forensic integrity.',
+    })
+  }
+  next()
+})
+
+// Audit Logs APIs (Read-Only)
+app.get('/api/audit-logs', authenticate, async (_req: AuthRequest, res, next) => {
+  try {
+    const logs = await prisma.activityLog.findMany({
+      orderBy: { createdAt: 'desc' },
+    })
+    const formatted = logs.map((l) => ({
+      id: l.id,
+      action: l.activity,
+      user: l.username,
+      role: l.role,
+      target: l.target ?? 'System',
+      severity: l.severity ?? 'info',
+      ip: l.ipAddress,
+      timestamp: l.createdAt.toISOString(),
+      details: l.details ?? '',
+    }))
+    return res.json({ logs: formatted })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/audit-logs/export/csv', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const logs = await prisma.activityLog.findMany({
+      orderBy: { createdAt: 'desc' },
+    })
+
+    let csvContent = 'ID,Timestamp,User,Role,Action,Target,Severity,IP Address,Details\n'
+    for (const l of logs) {
+      const cleanDetails = (l.details ?? '').replace(/"/g, '""')
+      csvContent += `"${l.id}","${l.createdAt.toISOString()}","${l.username}","${l.role}","${l.activity}","${l.target ?? 'System'}","${l.severity ?? 'info'}","${l.ipAddress}","${cleanDetails}"\n`
+    }
+
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.AUDIT_LOG_EXPORT,
+      username: req.auth?.userId ?? 'authenticated_user',
+      role: req.auth?.role ?? UserRole.administrator,
+      target: 'Audit Ledger',
+      severity: 'info',
+      userId: req.auth?.userId,
+      details: 'Exported audit log entries as CSV file format',
+    })
+
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', 'attachment; filename="forensic_audit_trail.csv"')
+    return res.send(csvContent)
+  } catch (error) { next(error) }
+})
+
+app.get('/api/audit-logs/export/pdf', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const logs = await prisma.activityLog.findMany({
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const pdfText = `================================================================================
+DIGITAL EVIDENCE TRUST PLATFORM - IMMUTABLE AUDIT TRAIL REPORT
+================================================================================
+Generated At: ${new Date().toISOString()}
+Compliance Standard: ISO/IEC 27037 & Indian Evidence Act Section 65B
+Integrity Seal: Append-Only Immutable Cryptographic Ledger
+
+RECORD ENTRIES (${logs.length} Total):
+` + logs.map((l) => `[${l.createdAt.toISOString()}] | User: ${l.username} (${l.role}) | IP: ${l.ipAddress} | Action: ${l.activity} | Target: ${l.target} | Severity: ${l.severity}\nDetails: ${l.details || 'N/A'}\n--------------------------------------------------------------------------------`).join('\n')
+
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.AUDIT_LOG_EXPORT,
+      username: req.auth?.userId ?? 'authenticated_user',
+      role: req.auth?.role ?? UserRole.administrator,
+      target: 'Audit Ledger',
+      severity: 'info',
+      userId: req.auth?.userId,
+      details: 'Exported audit log entries as PDF/Text report',
+    })
+
+    res.setHeader('Content-Type', 'text/plain')
+    res.setHeader('Content-Disposition', 'attachment; filename="forensic_audit_report.txt"')
+    return res.send(pdfText)
+  } catch (error) { next(error) }
+})
+
+app.get('/api/audit-logs/:id', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!rawId) return res.status(400).json({ message: 'Audit log ID is required.' })
+
+    const log = await prisma.activityLog.findUnique({ where: { id: rawId } })
+    if (!log) return res.status(404).json({ message: 'Audit log entry not found.' })
+
+    return res.json({
+      log: {
+        id: log.id,
+        action: log.activity,
+        user: log.username,
+        role: log.role,
+        target: log.target ?? 'System',
+        severity: log.severity ?? 'info',
+        ip: log.ipAddress,
+        timestamp: log.createdAt.toISOString(),
+        details: log.details ?? '',
+      },
+    })
+  } catch (error) { next(error) }
+})
+
 
 
 app.get('/api/evidence', authenticate, async (_req: AuthRequest, res, next) => {
