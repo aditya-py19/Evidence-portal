@@ -31,6 +31,7 @@ model User {
   createdBy          User?         @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers       User[]        @relation("UserCreatedBy")
   activityLogs       ActivityLog[]
+  evidences          Evidence[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 }
@@ -46,3 +47,38 @@ model ActivityLog {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 }
+
+model Evidence {
+  id                String   @id @default(cuid())
+  evidenceId        String   @unique
+  caseId            String   @default("TC-2026-0142")
+  caseTitle         String   @default("Cyber Fraud – UPI Payment Scam")
+  type              String   @default("image")
+  fileName          String
+  fileSize          String
+  ipfsCid           String
+  ipfsGatewayUrl    String
+  sha256            String
+  trustScore        Int      @default(78)
+  trustLevel        String   @default("needs_review")
+  status            String   @default("ai_review")
+  blockchainTxId    String?
+  blockNumber       Int?
+  digitalSignature  String?
+  currentOwner      String   @default("Rajesh Kumar")
+  currentDepartment String   @default("Cyber Crime Cell, Delhi Police")
+  lastAccess        DateTime @default(now())
+  aiAnalysis        Json?
+  trustBreakdown    Json?
+  geoStatus         String   @default("verified")
+  geoDistance       Float    @default(0.5)
+  allowedRadius     Float    @default(5.0)
+  crimeLocation     Json?
+  uploadLocation    Json?
+  uploaderId        String?
+  uploader          User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  uploadedBy        String   @default("Unknown Officer")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+

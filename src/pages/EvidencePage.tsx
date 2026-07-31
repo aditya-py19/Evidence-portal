@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Upload, Image, Video, Music, FileText, Eye, Shield,
@@ -24,12 +24,34 @@ const statusVariant = (s: string) => {
 }
 
 export default function EvidencePage() {
-  const [evidence, setEvidence] = useState(initialEvidence)
+  const [evidence, setEvidence] = useState<Evidence[]>(initialEvidence)
   const [search, setSearch] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  const fetchEvidence = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('evidence-portal-token')
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const response = await fetch('/api/evidence', { headers })
+      if (response.ok) {
+        const body = await response.json() as { evidence?: Evidence[] }
+        if (body.evidence && Array.isArray(body.evidence) && body.evidence.length > 0) {
+          setEvidence(body.evidence)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load evidence from server:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchEvidence()
+  }, [fetchEvidence])
 
   const filtered = evidence.filter((e) =>
     e.evidenceId.toLowerCase().includes(search.toLowerCase()) ||
@@ -80,87 +102,22 @@ export default function EvidencePage() {
       }
 
       const data = await response.json() as {
+        evidence?: Evidence
         ipfsCid: string
         sha256: string
         fileName: string
         fileSize: string
         message?: string
-        aiAnalysis?: {
-          available: boolean
-          message: string
-          aiGenerated: number
-          deepfake: number
-          weapon: number
-          gore: number
-          imageQuality: number
-          riskScore: number
-          recommendation: 'approved' | 'needs_manual_review' | 'high_risk'
-        }
       }
 
       setUploadProgress(100)
 
-      const liveAnalysis = data.aiAnalysis
-      const liveStatus = liveAnalysis?.available ? 'Sightengine Live' : 'Not Analysed'
-      const riskScore = liveAnalysis?.riskScore ?? 0
-
-      const newEvidence: Evidence = {
-        id: `EVD-${String(evidence.length + 1).padStart(3, '0')}`,
-        evidenceId: `EVD-TC-2026-NEW-${String(evidence.length + 1).padStart(3, '0')}`,
-        caseId: 'TC-2026-0142',
-        caseTitle: 'Cyber Fraud – UPI Payment Scam',
-        type: selectedFile.type.startsWith('image/')
-          ? 'image'
-          : selectedFile.type.startsWith('video/')
-          ? 'video'
-          : selectedFile.type.startsWith('audio/')
-          ? 'audio'
-          : 'document',
-        fileName: data.fileName,
-        fileSize: data.fileSize,
-        uploadTime: new Date().toISOString(),
-        uploadedBy: 'Rajesh Kumar',
-        uploadedById: 'USR-001',
-        status: 'ai_review',
-        trustScore: 78,
-        trustLevel: 'needs_review',
-        sha256: data.sha256,
-        ipfsCid: data.ipfsCid,
-        blockchainTxId: 'tx_' + Math.random().toString(36).substring(2, 15),
-        blockNumber: 2849100 + evidence.length,
-        digitalSignature: 'sig_RSA_2048_' + data.sha256.substring(0, 16),
-        currentOwner: 'Rajesh Kumar',
-        currentDepartment: 'Cyber Crime Cell, Delhi Police',
-        lastAccess: new Date().toISOString(),
-        aiAnalysis: {
-          deepfakeDetection: { score: liveAnalysis ? 100 - liveAnalysis.deepfake : 0, status: liveAnalysis ? liveStatus : 'Not Analysed' },
-          imageForgery: { score: liveAnalysis ? 100 - Math.max(liveAnalysis.aiGenerated, liveAnalysis.deepfake) : 0, status: liveAnalysis ? liveStatus : 'Not Analysed' },
-          videoTampering: { score: 90, status: 'Intact' },
-          metadataAnalysis: { score: 95, status: 'Consistent' },
-          duplicateDetection: { score: 98, status: 'Unique' },
-          blurDetection: { score: liveAnalysis?.available ? liveAnalysis.imageQuality : 0, status: liveAnalysis?.available ? liveStatus : 'Not Analysed' },
-          aiGeneratedContent: { score: liveAnalysis ? 100 - liveAnalysis.aiGenerated : 0, status: liveAnalysis ? liveStatus : 'Not Analysed' },
-          riskScore,
-          confidence: liveAnalysis?.available ? Math.max(0, 100 - Math.round(riskScore / 2)) : 0,
-          recommendation: liveAnalysis?.recommendation ?? 'needs_manual_review',
-        },
-        trustBreakdown: {
-          aiVerification: 88,
-          metadataConsistency: 95,
-          sha256Hash: 100,
-          digitalSignature: 95,
-          chainOfCustody: 90,
-          geolocation: 100,
-          blockchain: 100,
-        },
-        geoStatus: 'verified',
-        geoDistance: 0.5,
-        allowedRadius: 5,
-        crimeLocation: { lat: 28.6315, lng: 77.2167, address: 'Connaught Place, New Delhi' },
-        uploadLocation: { lat: 28.6289, lng: 77.2065, address: 'Cyber Crime Cell HQ, Delhi' },
+      if (data.evidence) {
+        setEvidence((prev) => [data.evidence!, ...prev])
+      } else {
+        await fetchEvidence()
       }
 
-      setEvidence([newEvidence, ...evidence])
       setUploading(false)
       setSelectedFile(null)
       alert(data.message || `Successfully uploaded to IPFS! CID: ${data.ipfsCid}`)
@@ -170,6 +127,7 @@ export default function EvidencePage() {
       alert(`Upload failed: ${errorMsg}`)
     }
   }
+
 
   return (
     <div className="space-y-6 animate-in">
