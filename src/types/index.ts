@@ -88,6 +88,7 @@ export interface Evidence {
   trustLevel: TrustLevel
   sha256: string
   ipfsCid: string
+  ipfsGatewayUrl?: string
   blockchainTxId: string
   transactionHash?: string
   blockNumber: number
