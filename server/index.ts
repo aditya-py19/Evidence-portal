@@ -10,7 +10,12 @@ import { ACTIVITY, logActivity } from './activityLog.js'
 import { recordEvidenceOnChain, verifyEvidenceOnChain } from './blockchain/contractService.js'
 
 
-const required = ['DATABASE_URL', 'JWT_SECRET'] as const
+const jwtSecret = process.env.JWT_SECRET
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET environment variable is required')
+}
+
+const required = ['DATABASE_URL'] as const
 for (const key of required) {
   if (!process.env[key]) throw new Error(`${key} must be set in .env`)
 }
