@@ -4,6 +4,7 @@ import { Star, ArrowLeft, Shield, CheckCircle } from 'lucide-react'
 import { PageHeader, GlassCard, TrustMeter } from '../components/ui'
 import { getTrustLevelLabel, getTrustLevelColor, getTrustLevelBg, generateStars } from '../lib/utils'
 import type { Evidence } from '../types'
+import { apiFetch } from '../lib/api'
 
 const breakdownLabels: Record<string, string> = {
   aiVerification: 'AI Verification',
@@ -16,21 +17,17 @@ const breakdownLabels: Record<string, string> = {
 }
 
 export default function TrustScorePage() {
-  const { id } = useParams()
+  const { id } = useParams<{ id: string }>()
   const [evidenceListState, setEvidenceListState] = useState<Evidence[]>([])
   const [evidence, setEvidence] = useState<Evidence | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     async function loadData() {
       setLoading(true)
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
         if (id) {
-          const res = await fetch(`/api/evidence/${id}`, { headers })
+          const res = await apiFetch(`/api/evidence/${id}`)
           if (res.ok) {
             const body = await res.json() as { evidence?: Evidence }
             if (body.evidence) {
@@ -41,7 +38,7 @@ export default function TrustScorePage() {
           }
         }
 
-        const resAll = await fetch('/api/evidence', { headers })
+        const resAll = await apiFetch('/api/evidence')
         if (resAll.ok) {
           const bodyAll = await resAll.json() as { evidence?: Evidence[] }
           if (bodyAll.evidence) {

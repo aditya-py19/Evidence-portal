@@ -3,6 +3,7 @@ import { Plus, UserX, Key, History, Shield } from 'lucide-react'
 import { PageHeader, GlassCard, SearchInput, StatusBadge, Modal } from '../components/ui'
 import { ROLE_LABELS } from '../types'
 import type { User, UserRole } from '../types'
+import { apiFetch } from '../lib/api'
 
 type CreateForm = {
   name: string; email: string; username: string; role: UserRole
@@ -20,14 +21,10 @@ export default function UsersPage() {
   const [form, setForm] = useState<CreateForm>(emptyForm)
   const [formError, setFormError] = useState('')
 
-  const headers = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${localStorage.getItem('evidence-portal-token') ?? ''}`,
-  })
   const fromApi = (user: User): User => ({ ...user, assignedCases: 0, evidenceUploaded: 0 })
 
   useEffect(() => {
-    fetch('/api/users', { headers: headers() })
+    apiFetch('/api/users')
       .then(async (response) => {
         const body = await response.json() as { users?: User[] }
         if (response.ok && body.users) setUsers(body.users.map(fromApi))
@@ -44,15 +41,21 @@ export default function UsersPage() {
   const toggleActive = async (id: string) => {
     const current = users.find((user) => user.id === id)
     if (!current) return
-    const response = await fetch(`/api/users/${id}/status`, {
-      method: 'PATCH', headers: headers(), body: JSON.stringify({ isActive: !current.isActive }),
+    const response = await apiFetch(`/api/users/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: !current.isActive }),
     })
     if (response.ok) setUsers(users.map((user) => user.id === id ? { ...user, isActive: !user.isActive } : user))
   }
 
   const handleCreate = async () => {
     setFormError('')
-    const response = await fetch('/api/users', { method: 'POST', headers: headers(), body: JSON.stringify(form) })
+    const response = await apiFetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
     const body = await response.json() as { user?: User; message?: string }
     if (!response.ok || !body.user) return setFormError(body.message ?? 'Unable to create the authorised account.')
     setUsers([fromApi(body.user), ...users])

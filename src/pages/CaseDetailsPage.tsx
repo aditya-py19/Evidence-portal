@@ -8,6 +8,7 @@ import {
 import { PageHeader, GlassCard, StatusBadge, Modal, TabGroup } from '../components/ui'
 import { QRShareSection } from '../components/QRShareSection'
 import { formatDate } from '../lib/utils'
+import { apiFetch, downloadAuthenticatedBlob } from '../lib/api'
 
 interface CaseData {
   id: string
@@ -121,11 +122,7 @@ export default function CaseDetailsPage() {
     setLoading(true)
     setError(null)
     try {
-      const token = localStorage.getItem('token')
-      const headers: Record<string, string> = {}
-      if (token) headers['Authorization'] = `Bearer ${token}`
-
-      const res = await fetch(`/api/cases/${encodeURIComponent(caseId)}`, { headers })
+      const res = await apiFetch(`/api/cases/${encodeURIComponent(caseId)}`)
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         throw new Error(errData.message || `Failed to fetch case details for ${caseId}`)
@@ -151,13 +148,8 @@ export default function CaseDetailsPage() {
   const handleVerifyOnChain = async (evidence: EvidenceItem) => {
     setVerifyingOnChainId(evidence.id)
     try {
-      const token = localStorage.getItem('token')
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-
-      const res = await fetch(`/api/evidence/${evidence.id}/verify-on-chain`, {
+      const res = await apiFetch(`/api/evidence/${evidence.id}/verify-on-chain`, {
         method: 'POST',
-        headers,
       })
 
       if (res.ok) {
@@ -198,9 +190,14 @@ export default function CaseDetailsPage() {
     window.print()
   }
 
-  const handleGeneratePdfReport = () => {
+  const handleGeneratePdfReport = async () => {
     if (!caseRecord) return
-    window.open(`/api/case/report/pdf/${caseRecord.caseId}`, '_blank')
+    try {
+      await downloadAuthenticatedBlob(`/api/case/report/pdf/${caseRecord.caseId}`, `${caseRecord.caseId}_Official_Case_Report.html`, 'text/html')
+    } catch (err: any) {
+      console.error('Failed to generate case report PDF:', err)
+      alert(err.message || 'Failed to generate case report PDF.')
+    }
   }
 
   if (loading) {

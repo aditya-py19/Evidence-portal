@@ -14,6 +14,7 @@ import {
   caseStatusData, aiDetectionData, recentActivities, notifications,
 } from '../data/mockData'
 import type { Evidence } from '../types'
+import { apiFetch } from '../lib/api'
 
 const chartTooltipStyle = {
   contentStyle: { background: '#ffffff', border: '1px solid #D9E2EC', borderRadius: '8px', fontSize: '12px', color: '#102A43' },
@@ -26,11 +27,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
-        const res = await fetch('/api/evidence', { headers })
+        const res = await apiFetch('/api/evidence')
         if (res.ok) {
           const body = await res.json() as { evidence?: Evidence[] }
           if (body.evidence) setEvidenceList(body.evidence)

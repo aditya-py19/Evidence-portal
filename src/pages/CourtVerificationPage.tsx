@@ -3,6 +3,7 @@ import { Gavel, CheckCircle, XCircle, Download, Upload, Shield, FileSearch } fro
 import { PageHeader, GlassCard, TrustMeter, StatusBadge } from '../components/ui'
 import { truncateHash } from '../lib/utils'
 import type { Evidence } from '../types'
+import { apiFetch } from '../lib/api'
 
 export default function CourtVerificationPage() {
   const [evidenceList, setEvidenceList] = useState<Evidence[]>([])
@@ -13,11 +14,7 @@ export default function CourtVerificationPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
-        const res = await fetch('/api/evidence', { headers })
+        const res = await apiFetch('/api/evidence')
         if (res.ok) {
           const body = await res.json() as { evidence?: Evidence[] }
           if (body.evidence && body.evidence.length > 0) {

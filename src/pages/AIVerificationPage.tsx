@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import {
   Brain, CheckCircle, AlertTriangle, XCircle, ArrowLeft,
   Eye, Fingerprint, Copy, Video, Image, FileSearch, ShieldCheck,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { PageHeader, GlassCard, StatusBadge, TrustMeter } from '../components/ui'
 import { formatDate, truncateHash } from '../lib/utils'
+import { apiFetch } from '../lib/api'
 import type { Evidence } from '../types'
 
 const analysisItems = [
@@ -26,8 +27,9 @@ const recConfig = {
 }
 
 export default function AIVerificationPage() {
-  const { id } = useParams()
-  const routedEvidence = (window.history.state?.usr as { evidence?: Evidence } | undefined)?.evidence
+  const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const routedEvidence = (location.state as { evidence?: Evidence })?.evidence
   const [evidenceListState, setEvidenceListState] = useState<Evidence[]>([])
   const [evidence, setEvidence] = useState<Evidence | null>(routedEvidence ?? null)
   const [loading, setLoading] = useState(true)
@@ -36,12 +38,8 @@ export default function AIVerificationPage() {
     async function loadData() {
       setLoading(true)
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
         if (id && !routedEvidence) {
-          const res = await fetch(`/api/evidence/${id}`, { headers })
+          const res = await apiFetch(`/api/evidence/${id}`)
           if (res.ok) {
             const body = await res.json() as { evidence?: Evidence }
             if (body.evidence) {
@@ -52,7 +50,7 @@ export default function AIVerificationPage() {
           }
         }
 
-        const resAll = await fetch('/api/evidence', { headers })
+        const resAll = await apiFetch('/api/evidence')
         if (resAll.ok) {
           const bodyAll = await resAll.json() as { evidence?: Evidence[] }
           if (bodyAll.evidence) {

@@ -7,6 +7,7 @@ import {
 import { PageHeader, GlassCard } from '../components/ui'
 import { chainOfCustody } from '../data/mockData'
 import { formatDate, truncateHash } from '../lib/utils'
+import { apiFetch } from '../lib/api'
 import type { Evidence } from '../types'
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -25,7 +26,7 @@ const iconMap: Record<string, React.ReactNode> = {
 }
 
 export default function ChainOfCustodyPage() {
-  const { id } = useParams()
+  const { id } = useParams<{ id: string }>()
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -33,12 +34,8 @@ export default function ChainOfCustodyPage() {
     async function loadData() {
       setLoading(true)
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
         if (id) {
-          const res = await fetch(`/api/evidence/${id}`, { headers })
+          const res = await apiFetch(`/api/evidence/${id}`)
           if (res.ok) {
             const body = await res.json() as { evidence?: Evidence }
             if (body.evidence) {
@@ -49,7 +46,7 @@ export default function ChainOfCustodyPage() {
           }
         }
 
-        const resAll = await fetch('/api/evidence', { headers })
+        const resAll = await apiFetch('/api/evidence')
         if (resAll.ok) {
           const bodyAll = await resAll.json() as { evidence?: Evidence[] }
           if (bodyAll.evidence && bodyAll.evidence.length > 0) {

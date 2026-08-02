@@ -15,17 +15,15 @@ type ActivityLogRow = {
   timestamp: string
 }
 
+import { apiFetch, downloadAuthenticatedBlob } from '../../lib/api'
+
 export default function AdminActivityLogsPage() {
   const [logs, setLogs] = useState<ActivityLogRow[]>([])
   const [search, setSearch] = useState('')
   const [activityFilter, setActivityFilter] = useState('all')
 
-  const headers = () => ({
-    Authorization: `Bearer ${localStorage.getItem('evidence-portal-token') ?? ''}`,
-  })
-
   useEffect(() => {
-    fetch('/api/admin/activity-logs', { headers: headers() })
+    apiFetch('/api/admin/activity-logs')
       .then(async (response) => {
         const body = await response.json() as { logs?: ActivityLogRow[] }
         if (response.ok && body.logs) setLogs(body.logs)
@@ -44,15 +42,11 @@ export default function AdminActivityLogsPage() {
     )
 
   const handleDownloadCsv = async () => {
-    const response = await fetch('/api/admin/activity-logs/export', { headers: headers() })
-    if (!response.ok) return
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'activity-logs.csv'
-    link.click()
-    URL.revokeObjectURL(url)
+    try {
+      await downloadAuthenticatedBlob('/api/admin/activity-logs/export', 'activity-logs.csv', 'text/csv')
+    } catch (err) {
+      console.error('Failed to export activity logs:', err)
+    }
   }
 
   return (

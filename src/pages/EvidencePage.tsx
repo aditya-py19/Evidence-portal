@@ -7,6 +7,7 @@ import {
 import { PageHeader, GlassCard, SearchInput, StatusBadge, TrustMeter } from '../components/ui'
 import { CyberForensicsProcessingView } from '../components/CyberForensicsProcessingView'
 import { formatDate, getTrustLevelBg } from '../lib/utils'
+import { apiFetch } from '../lib/api'
 import type { Evidence, EvidenceType } from '../types'
 
 const typeIcons: Record<EvidenceType, React.ReactNode> = {
@@ -33,11 +34,7 @@ export default function EvidencePage() {
 
   const fetchEvidence = useCallback(async () => {
     try {
-      const token = localStorage.getItem('evidence-portal-token')
-      const headers: Record<string, string> = {}
-      if (token) headers['Authorization'] = `Bearer ${token}`
-
-      const response = await fetch('/api/evidence', { headers })
+      const response = await apiFetch('/api/evidence')
       if (response.ok) {
         const body = await response.json() as { evidence?: Evidence[] }
         if (body.evidence && Array.isArray(body.evidence)) {

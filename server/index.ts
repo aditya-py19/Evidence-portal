@@ -17,10 +17,25 @@ for (const key of required) {
 
 const prisma = new PrismaClient()
 const app = express()
-const port = Number(process.env.PORT ?? 4000)
-const jwtSecret = process.env.JWT_SECRET as string
+const allowedOrigins = new Set([
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://localhost:3000',
+  'https://evidence-portal-chi.vercel.app',
+  ...(process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(',').map((s) => s.trim()) : []),
+  ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map((s) => s.trim()) : []),
+])
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173' }))
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.has(origin) || origin.endsWith('.vercel.app')) {
+      return callback(null, true)
+    }
+    return callback(null, true)
+  },
+  credentials: true,
+}))
 app.use(express.json())
 
 type AuthRequest = Request & { auth?: { userId: string; role: UserRole } }
@@ -1164,7 +1179,7 @@ app.get('/api/case/verify/:verificationToken', async (req: Request, res: Respons
 })
 
 // Official Multi-Page Court PDF Case Report Endpoint
-app.get('/api/case/report/pdf/:caseId', async (req: Request, res: Response, next: NextFunction) => {
+app.get('/api/case/report/pdf/:caseId', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const caseIdParam = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId
 

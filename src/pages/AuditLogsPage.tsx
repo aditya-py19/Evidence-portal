@@ -13,6 +13,8 @@ const severityVariant = (s: string) => {
   return map[s] || 'info'
 }
 
+import { apiFetch, downloadAuthenticatedBlob } from '../lib/api'
+
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -23,11 +25,7 @@ export default function AuditLogsPage() {
   useEffect(() => {
     async function fetchAuditLogs() {
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
-        const res = await fetch('/api/audit-logs', { headers })
+        const res = await apiFetch('/api/audit-logs')
         if (res.ok) {
           const data = await res.json() as { logs: AuditLog[] }
           setLogs(data.logs)
@@ -42,14 +40,20 @@ export default function AuditLogsPage() {
     fetchAuditLogs()
   }, [])
 
-  const handleExportCSV = () => {
-    const token = localStorage.getItem('evidence-portal-token')
-    window.open(`/api/audit-logs/export/csv?token=${token}`, '_blank')
+  const handleExportCSV = async () => {
+    try {
+      await downloadAuthenticatedBlob('/api/audit-logs/export/csv', 'forensic_audit_trail.csv', 'text/csv')
+    } catch (err) {
+      console.error('Failed to export CSV:', err)
+    }
   }
 
-  const handleExportPDF = () => {
-    const token = localStorage.getItem('evidence-portal-token')
-    window.open(`/api/audit-logs/export/pdf?token=${token}`, '_blank')
+  const handleExportPDF = async () => {
+    try {
+      await downloadAuthenticatedBlob('/api/audit-logs/export/pdf', 'forensic_audit_report.txt', 'text/plain')
+    } catch (err) {
+      console.error('Failed to export PDF:', err)
+    }
   }
 
   const handlePrint = () => {

@@ -8,6 +8,7 @@ import {
 import { PageHeader, GlassCard, SearchInput, StatusBadge, Modal } from '../components/ui'
 import { cases as initialCases } from '../data/mockData'
 import { formatDate } from '../lib/utils'
+import { apiFetch } from '../lib/api'
 import type { Case, CasePriority, CaseStatus } from '../types'
 
 const emptyForm = {
@@ -55,11 +56,7 @@ export default function CasesPage() {
 
   const fetchCases = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token')
-      const headers: Record<string, string> = {}
-      if (token) headers['Authorization'] = `Bearer ${token}`
-
-      const res = await fetch('/api/cases', { headers })
+      const res = await apiFetch('/api/cases')
       if (res.ok) {
         const data = await res.json()
         if (Array.isArray(data.cases) && data.cases.length > 0) {
@@ -223,13 +220,9 @@ export default function CasesPage() {
     })()
 
     try {
-      const token = localStorage.getItem('token')
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-
-      const res = await fetch('/api/cases', {
+      const res = await apiFetch('/api/cases', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: form.title.trim(),
           firNumber: form.firNumber.trim(),

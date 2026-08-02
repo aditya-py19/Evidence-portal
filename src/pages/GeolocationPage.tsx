@@ -5,6 +5,7 @@ import { PageHeader, GlassCard, StatusBadge } from '../components/ui'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Evidence } from '../types'
+import { apiFetch } from '../lib/api'
 
 const geoConfig = {
   verified: { icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-500/10 border-emerald-500/30', label: 'Verified', variant: 'success' as const },
@@ -62,12 +63,8 @@ export default function GeolocationPage() {
     async function loadData() {
       setLoading(true)
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
         if (id) {
-          const res = await fetch(`/api/evidence/${id}`, { headers })
+          const res = await apiFetch(`/api/evidence/${id}`)
           if (res.ok) {
             const body = await res.json() as { evidence?: Evidence }
             if (body.evidence) {
@@ -78,7 +75,7 @@ export default function GeolocationPage() {
           }
         }
 
-        const resAll = await fetch('/api/evidence', { headers })
+        const resAll = await apiFetch('/api/evidence')
         if (resAll.ok) {
           const bodyAll = await resAll.json() as { evidence?: Evidence[] }
           if (bodyAll.evidence && bodyAll.evidence.length > 0) {

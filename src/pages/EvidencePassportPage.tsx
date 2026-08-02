@@ -9,9 +9,10 @@ import { PageHeader, GlassCard, TrustMeter, StatusBadge, TabGroup } from '../com
 import { QRShareSection } from '../components/QRShareSection'
 import { formatDate, formatRelativeTime, truncateHash, getTrustLevelLabel, getTrustLevelBg, getTrustLevelColor } from '../lib/utils'
 import type { Evidence, AuditLog } from '../types'
+import { apiFetch } from '../lib/api'
 
 export default function EvidencePassportPage() {
-  const { id } = useParams()
+  const { id } = useParams<{ id: string }>()
   const [evidenceListState, setEvidenceListState] = useState<Evidence[]>([])
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
@@ -22,7 +23,9 @@ export default function EvidencePassportPage() {
   const [verificationResult, setVerificationResult] = useState<{
     verified: boolean
     message: string
-    onChainData?: any
+    transactionHash?: string
+    blockNumber?: number
+    verifiedAt?: string
   } | null>(null)
 
   useEffect(() => {
@@ -30,14 +33,10 @@ export default function EvidencePassportPage() {
       setLoading(true)
       setVerificationResult(null)
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
         let currentEvidence: Evidence | null = null
 
         if (id) {
-          const res = await fetch(`/api/evidence/${id}`, { headers })
+          const res = await apiFetch(`/api/evidence/${id}`)
           if (res.ok) {
             const body = await res.json() as { evidence?: Evidence }
             if (body.evidence) {
@@ -46,7 +45,7 @@ export default function EvidencePassportPage() {
           }
         }
 
-        const resAll = await fetch('/api/evidence', { headers })
+        const resAll = await apiFetch('/api/evidence')
         if (resAll.ok) {
           const bodyAll = await resAll.json() as { evidence?: Evidence[] }
           if (bodyAll.evidence && bodyAll.evidence.length > 0) {
@@ -62,7 +61,7 @@ export default function EvidencePassportPage() {
         setEvidence(currentEvidence)
 
         // Fetch audit logs
-        const auditRes = await fetch('/api/audit-logs', { headers })
+        const auditRes = await apiFetch('/api/audit-logs')
         if (auditRes.ok) {
           const auditBody = await auditRes.json() as { logs?: AuditLog[] }
           if (auditBody.logs) {
@@ -70,7 +69,7 @@ export default function EvidencePassportPage() {
           }
         }
       } catch (err) {
-        console.error('Failed to fetch passport evidence:', err)
+        console.error('Failed to load evidence passport:', err)
       } finally {
         setLoading(false)
       }
@@ -82,31 +81,30 @@ export default function EvidencePassportPage() {
     if (!evidence) return
     setVerifying(true)
     try {
-      const token = localStorage.getItem('evidence-portal-token')
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-
-      const res = await fetch(`/api/evidence/${evidence.id}/verify-on-chain`, {
+      const res = await apiFetch(`/api/evidence/${evidence.id}/verify-on-chain`, {
         method: 'POST',
-        headers,
       })
       const data = await res.json()
       if (res.ok) {
         setVerificationResult({
-          verified: Boolean(data.verified),
-          message: data.message || (data.verified ? 'Verified ✓ (On-Chain SHA-256 Hash Matches Database Record)' : 'Integrity Compromised ✗'),
-          onChainData: data.onChainData,
+          verified: data.verified !== false,
+          message: data.message || 'Verification successful on Polygon Amoy testnet',
+          transactionHash: data.transactionHash || evidence.transactionHash,
+          blockNumber: data.blockNumber || evidence.blockNumber,
+          verifiedAt: new Date().toLocaleTimeString('en-IN'),
         })
       } else {
         setVerificationResult({
           verified: false,
-          message: data.message || 'Verification failed.',
+          message: data.message || 'Verification check failed',
+          verifiedAt: new Date().toLocaleTimeString('en-IN'),
         })
       }
-    } catch (err: any) {
+    } catch (err) {
       setVerificationResult({
         verified: false,
-        message: `Verification network error: ${err.message || 'Unable to connect'}`,
+        message: 'Could not connect to Polygon blockchain node',
+        verifiedAt: new Date().toLocaleTimeString('en-IN'),
       })
     } finally {
       setVerifying(false)

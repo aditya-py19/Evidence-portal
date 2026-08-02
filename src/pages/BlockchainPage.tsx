@@ -4,9 +4,10 @@ import { Link2, Copy, ExternalLink, Shield, Hash, ArrowLeft, CheckCircle } from 
 import { PageHeader, GlassCard, StatusBadge } from '../components/ui'
 import { formatDate, truncateHash } from '../lib/utils'
 import type { Evidence } from '../types'
+import { apiFetch } from '../lib/api'
 
 export default function BlockchainPage() {
-  const { id } = useParams()
+  const { id } = useParams<{ id: string }>()
   const [evidenceListState, setEvidenceListState] = useState<Evidence[]>([])
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [loading, setLoading] = useState(true)
@@ -15,12 +16,8 @@ export default function BlockchainPage() {
     async function loadData() {
       setLoading(true)
       try {
-        const token = localStorage.getItem('evidence-portal-token')
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
-
         if (id) {
-          const res = await fetch(`/api/evidence/${id}`, { headers })
+          const res = await apiFetch(`/api/evidence/${id}`)
           if (res.ok) {
             const body = await res.json() as { evidence?: Evidence }
             if (body.evidence) {
@@ -31,7 +28,7 @@ export default function BlockchainPage() {
           }
         }
 
-        const resAll = await fetch('/api/evidence', { headers })
+        const resAll = await apiFetch('/api/evidence')
         if (resAll.ok) {
           const bodyAll = await resAll.json() as { evidence?: Evidence[] }
           if (bodyAll.evidence && bodyAll.evidence.length > 0) {
@@ -45,7 +42,7 @@ export default function BlockchainPage() {
           }
         }
       } catch (err) {
-        console.error('Failed to load blockchain evidence:', err)
+        console.error('Failed to fetch evidence for blockchain:', err)
       } finally {
         setLoading(false)
       }

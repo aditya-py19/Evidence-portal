@@ -4,6 +4,7 @@ import { PageHeader, GlassCard, SearchInput, StatusBadge, Modal } from '../../co
 import { ROLE_LABELS } from '../../types'
 import type { User, UserRole } from '../../types'
 import { formatDate } from '../../lib/utils'
+import { apiFetch } from '../../lib/api'
 
 type Officer = User & { createdAt?: string }
 
@@ -37,11 +38,6 @@ export default function AdminOfficersPage() {
   const [editForm, setEditForm] = useState<EditForm>({ name: '', department: '', badgeNumber: '', role: 'police_officer' })
   const [formError, setFormError] = useState('')
 
-  const headers = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${localStorage.getItem('evidence-portal-token') ?? ''}`,
-  })
-
   const fromApi = (officer: Officer): Officer => ({
     ...officer,
     assignedCases: officer.assignedCases ?? 0,
@@ -49,7 +45,7 @@ export default function AdminOfficersPage() {
   })
 
   const loadOfficers = () => {
-    fetch('/api/admin/officers', { headers: headers() })
+    apiFetch('/api/admin/officers')
       .then(async (response) => {
         const body = await response.json() as { officers?: Officer[] }
         if (response.ok && body.officers) setOfficers(body.officers.map(fromApi))
@@ -68,9 +64,9 @@ export default function AdminOfficersPage() {
   const toggleActive = async (id: string) => {
     const current = officers.find((officer) => officer.id === id)
     if (!current) return
-    const response = await fetch(`/api/admin/officers/${id}/status`, {
+    const response = await apiFetch(`/api/admin/officers/${id}/status`, {
       method: 'PATCH',
-      headers: headers(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isActive: !current.isActive }),
     })
     if (response.ok) {
@@ -82,9 +78,9 @@ export default function AdminOfficersPage() {
 
   const handleCreate = async () => {
     setFormError('')
-    const response = await fetch('/api/admin/officers', {
+    const response = await apiFetch('/api/admin/officers', {
       method: 'POST',
-      headers: headers(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
     })
     const body = await response.json() as { officer?: Officer; message?: string }
@@ -111,9 +107,9 @@ export default function AdminOfficersPage() {
   const handleEdit = async () => {
     if (!editingId) return
     setFormError('')
-    const response = await fetch(`/api/admin/officers/${editingId}`, {
+    const response = await apiFetch(`/api/admin/officers/${editingId}`, {
       method: 'PATCH',
-      headers: headers(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editForm),
     })
     const body = await response.json() as { officer?: Officer; message?: string }

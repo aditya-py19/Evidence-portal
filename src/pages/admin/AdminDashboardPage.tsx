@@ -16,17 +16,15 @@ type ActivityLogRow = {
   timestamp: string
 }
 
+import { apiFetch } from '../../lib/api'
+
 export default function AdminDashboardPage() {
   const [officerCount, setOfficerCount] = useState(0)
   const [activeOfficers, setActiveOfficers] = useState(0)
   const [recentLogs, setRecentLogs] = useState<ActivityLogRow[]>([])
 
-  const headers = () => ({
-    Authorization: `Bearer ${localStorage.getItem('evidence-portal-token') ?? ''}`,
-  })
-
   useEffect(() => {
-    fetch('/api/admin/officers', { headers: headers() })
+    apiFetch('/api/admin/officers')
       .then(async (response) => {
         const body = await response.json() as { officers?: { isActive: boolean }[] }
         if (response.ok && body.officers) {
@@ -36,7 +34,7 @@ export default function AdminDashboardPage() {
       })
       .catch(() => undefined)
 
-    fetch('/api/admin/activity-logs', { headers: headers() })
+    apiFetch('/api/admin/activity-logs')
       .then(async (response) => {
         const body = await response.json() as { logs?: ActivityLogRow[] }
         if (response.ok && body.logs) setRecentLogs(body.logs.slice(0, 8))
