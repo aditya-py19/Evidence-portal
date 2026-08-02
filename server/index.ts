@@ -1616,4 +1616,8 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ message: 'Unexpected server error.' })
 })
 
-app.listen(port, () => console.log(`Evidence Portal API listening on http://localhost:${port}`))
+const port = Number(process.env.PORT) || 4000
+
+app.listen(port, () => {
+  console.log(`Evidence Portal API listening on port ${port}`)
+})
