@@ -806,6 +806,241 @@ app.patch('/api/notifications/read-all', authenticate, async (_req: AuthRequest,
   }
 })
 
+// Case Management APIs
+app.get('/api/cases', authenticate, async (_req: AuthRequest, res, next) => {
+  try {
+    const casesList = await prisma.case.findMany({
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const evidenceCounts = await prisma.evidence.groupBy({
+      by: ['caseId'],
+      _count: { id: true },
+    })
+    const countMap: Record<string, number> = {}
+    evidenceCounts.forEach((ec) => {
+      countMap[ec.caseId] = ec._count.id
+    })
+
+    const formattedCases = casesList.map((c) => ({
+      id: c.id,
+      caseId: c.caseId,
+      title: c.title,
+      firNumber: c.firNumber,
+      crimeType: c.crimeType,
+      description: c.description,
+      location: c.location,
+      dateTime: c.dateTime,
+      officerAssigned: c.officerAssigned,
+      officerId: c.officerId,
+      department: c.department,
+      priority: c.priority,
+      status: c.status,
+      evidenceCount: countMap[c.caseId] || 0,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+      verificationToken: c.verificationToken,
+    }))
+
+    return res.json({ cases: formattedCases })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/cases', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const { title, firNumber, crimeType, description, location, dateTime, officerAssigned, priority, status } = req.body
+    if (!title || !firNumber || !crimeType || !description) {
+      return res.status(400).json({ message: 'Title, FIR Number, Crime Type, and Description are required.' })
+    }
+
+    const count = await prisma.case.count()
+    const caseId = `TC-2026-${String(count + 143).padStart(4, '0')}`
+
+    const newCase = await prisma.case.create({
+      data: {
+        caseId,
+        title: typeof title === 'string' ? title.trim() : '',
+        firNumber: typeof firNumber === 'string' ? firNumber.trim() : `FIR-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        crimeType: typeof crimeType === 'string' ? crimeType.trim() : 'Cyber Crime',
+        description: typeof description === 'string' ? description.trim() : '',
+        location: typeof location === 'string' && location.trim() ? location.trim() : 'Connaught Place, New Delhi',
+        dateTime: typeof dateTime === 'string' && dateTime.trim() ? dateTime.trim() : new Date().toISOString(),
+        officerAssigned: typeof officerAssigned === 'string' && officerAssigned.trim() ? officerAssigned.trim() : 'Rajesh Kumar',
+        department: 'Cyber Crime Cell, Delhi Police',
+        priority: typeof priority === 'string' ? priority : 'high',
+        status: typeof status === 'string' ? status : 'active',
+      },
+    })
+
+    return res.status(201).json({ case: newCase })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/cases/:caseId', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const param = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId
+    if (!param) return res.status(400).json({ message: 'Case ID is required.' })
+
+    const caseRecord = await prisma.case.findFirst({
+      where: { OR: [{ caseId: param }, { id: param }, { verificationToken: param }] },
+    })
+
+    if (!caseRecord) {
+      return res.status(404).json({ message: `Case ID ${param} not found in database.` })
+    }
+
+    // STRICT ISOLATION: Fetch ONLY evidence assigned to caseRecord.caseId
+    const evidences = await prisma.evidence.findMany({
+      where: { caseId: caseRecord.caseId },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    // Fetch assigned lead officer / team details
+    const dbOfficer = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { name: { contains: caseRecord.officerAssigned, mode: 'insensitive' } },
+          { username: { contains: caseRecord.officerAssigned, mode: 'insensitive' } },
+          ...(caseRecord.officerId ? [{ id: caseRecord.officerId }] : []),
+        ],
+      },
+    })
+
+    const leadOfficer = {
+      name: dbOfficer?.name || caseRecord.officerAssigned,
+      username: dbOfficer?.username || 'officer.lead',
+      rank: dbOfficer?.role === UserRole.investigating_officer ? 'Senior Investigating Officer' : 'Inspector of Police',
+      badgeNumber: dbOfficer?.badgeNumber || 'INSP-2026-88',
+      department: dbOfficer?.department || caseRecord.department,
+      station: 'Cyber Crime Cell HQ, New Delhi',
+      avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(dbOfficer?.name || caseRecord.officerAssigned)}`,
+    }
+
+    // Co-assigned investigators if available
+    const otherOfficers = await prisma.user.findMany({
+      where: {
+        role: { in: [UserRole.police_officer, UserRole.investigating_officer, UserRole.forensic_expert] },
+        id: { not: dbOfficer?.id },
+      },
+      take: 2,
+    })
+
+    const team = [
+      leadOfficer,
+      ...otherOfficers.map((o) => ({
+        name: o.name,
+        username: o.username,
+        rank: o.role.replace(/_/g, ' ').toUpperCase(),
+        badgeNumber: o.badgeNumber,
+        department: o.department,
+        station: 'Cyber Crime Cell HQ, New Delhi',
+        avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(o.name)}`,
+      })),
+    ]
+
+    // Fetch audit activity logs scoped to this case or its evidence items
+    const evidenceIds = evidences.map((e) => e.evidenceId).concat(evidences.map((e) => e.id))
+    const auditLogs = await prisma.activityLog.findMany({
+      where: {
+        OR: [
+          { target: caseRecord.caseId },
+          { target: { in: evidenceIds } },
+          { details: { contains: caseRecord.caseId } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+
+    // Calculate aggregated case statistics
+    const totalEvidenceCount = evidences.length
+    const avgTrustScore = totalEvidenceCount > 0
+      ? Math.round(evidences.reduce((acc, curr) => acc + curr.trustScore, 0) / totalEvidenceCount)
+      : 100
+    const highRiskItemsCount = evidences.filter((e) => e.trustScore < 60 || e.status === 'high_risk').length
+    const verifiedBlockchainCount = evidences.filter((e) => Boolean(e.transactionHash || e.blockchainTxId)).length
+
+    const formattedEvidences = evidences.map((e) => ({
+      id: e.id,
+      evidenceId: e.evidenceId,
+      caseId: e.caseId,
+      caseTitle: e.caseTitle,
+      type: e.type,
+      fileName: e.fileName,
+      fileSize: e.fileSize,
+      uploadTime: e.createdAt.toISOString(),
+      uploadedBy: e.uploadedBy,
+      uploaderAvatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(e.uploadedBy)}`,
+      status: e.status,
+      trustScore: e.trustScore,
+      trustLevel: e.trustLevel,
+      sha256: e.sha256,
+      ipfsCid: e.ipfsCid,
+      ipfsGatewayUrl: e.ipfsGatewayUrl,
+      blockchainTxId: e.transactionHash ?? e.blockchainTxId ?? '',
+      transactionHash: e.transactionHash ?? e.blockchainTxId ?? '',
+      blockNumber: e.blockNumber ?? 0,
+      contractAddress: e.contractAddress ?? '0x9E4fae61B349241f8a753dD50E092dF481F8ae08',
+      network: e.network ?? 'Polygon Amoy Testnet',
+      gasUsed: e.gasUsed ?? '329117',
+      digitalSignature: e.digitalSignature ?? '',
+      currentOwner: e.currentOwner,
+      currentDepartment: e.currentDepartment,
+      lastAccess: e.lastAccess.toISOString(),
+      aiAnalysis: e.aiAnalysis,
+      trustBreakdown: e.trustBreakdown,
+      geoStatus: e.geoStatus,
+      geoDistance: e.geoDistance,
+      allowedRadius: e.allowedRadius,
+      crimeLocation: e.crimeLocation,
+      uploadLocation: e.uploadLocation,
+      verificationToken: e.verificationToken,
+    }))
+
+    const courtReadiness = highRiskItemsCount > 0 ? 'NEEDS FORENSIC REVIEW' : 'COURT ADMISSIBLE - Section 65B Certified'
+
+    return res.json({
+      case: {
+        id: caseRecord.id,
+        caseId: caseRecord.caseId,
+        title: caseRecord.title,
+        firNumber: caseRecord.firNumber,
+        crimeType: caseRecord.crimeType,
+        description: caseRecord.description,
+        location: caseRecord.location,
+        dateTime: caseRecord.dateTime,
+        officerAssigned: caseRecord.officerAssigned,
+        department: caseRecord.department,
+        priority: caseRecord.priority,
+        status: caseRecord.status,
+        verificationToken: caseRecord.verificationToken,
+        createdAt: caseRecord.createdAt.toISOString(),
+        updatedAt: caseRecord.updatedAt.toISOString(),
+        courtReadiness,
+        stats: {
+          totalEvidence: totalEvidenceCount,
+          avgTrustScore,
+          highRiskCount: highRiskItemsCount,
+          blockchainVerifiedCount: verifiedBlockchainCount,
+        },
+      },
+      team,
+      evidence: formattedEvidences,
+      auditLogs: auditLogs.map((l) => ({
+        id: l.id,
+        timestamp: l.createdAt.toISOString(),
+        user: l.username,
+        role: l.role,
+        action: l.activity,
+        target: l.target ?? caseRecord.caseId,
+        severity: l.severity ?? 'info',
+        ipAddress: l.ipAddress,
+        details: l.details ?? '',
+      })),
+    })
+  } catch (error) { next(error) }
+})
+
 // Audit Logs Security Middleware (Disable PUT, POST, PATCH, DELETE for audit logs - HTTP 403 Forbidden)
 app.use('/api/audit-logs', (req, res, next) => {
   if (['PUT', 'POST', 'PATCH', 'DELETE'].includes(req.method) && !req.path.includes('/export')) {

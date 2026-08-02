@@ -39,6 +39,7 @@ export interface Case {
   dateTime: string
   officerAssigned: string
   officerId: string
+  department?: string
   priority: CasePriority
   status: CaseStatus
   evidenceCount: number

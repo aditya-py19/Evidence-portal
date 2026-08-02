@@ -26,6 +26,8 @@ import AdminOfficersPage from './pages/admin/AdminOfficersPage'
 import AdminActivityLogsPage from './pages/admin/AdminActivityLogsPage'
 import PublicCaseVerificationPage from './pages/PublicCaseVerificationPage'
 
+import CaseDetailsPage from './pages/CaseDetailsPage'
+
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin } = useAuth()
   if (!isAuthenticated) return <Navigate to="/admin-login" replace />
@@ -60,6 +62,7 @@ export default function App() {
       <Route path="/admin/activity-logs" element={<AdminRoute><AdminActivityLogsPage /></AdminRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/cases" element={<ProtectedRoute><CasesPage /></ProtectedRoute>} />
+      <Route path="/cases/:caseId" element={<ProtectedRoute><CaseDetailsPage /></ProtectedRoute>} />
       <Route path="/evidence" element={<ProtectedRoute><EvidencePage /></ProtectedRoute>} />
       <Route path="/ai-verification" element={<ProtectedRoute><AIVerificationPage /></ProtectedRoute>} />
       <Route path="/ai-verification/:id" element={<ProtectedRoute><AIVerificationPage /></ProtectedRoute>} />

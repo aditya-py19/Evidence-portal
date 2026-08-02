@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Plus, Filter, ArrowUpDown, Eye, XCircle, Camera, Fingerprint,
@@ -44,13 +44,38 @@ const statusVariant = (s: CaseStatus) => {
 }
 
 export default function CasesPage() {
-  const [cases, setCases] = useState(initialCases)
+  const [cases, setCases] = useState<Case[]>(initialCases)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState<FormErrors>({})
   const [touched, setTouched] = useState(false)
+
+  const fetchCases = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch('/api/cases', { headers })
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.cases) && data.cases.length > 0) {
+          setCases(data.cases)
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch live cases, using fallback cases state:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchCases()
+  }, [fetchCases])
 
   // Live photo / camera
   const [livePhoto, setLivePhoto] = useState<string | null>(null)
@@ -178,31 +203,87 @@ export default function CasesPage() {
     setShowCreate(false)
   }
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     setTouched(true)
     const nextErrors = validate()
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
-    const newCase: Case = {
+    const locationText = (() => {
+      if (form.crimeSceneMode === 'gps') {
+        return `GPS Coordinates: ${form.crimeSceneLatitude.trim()}, ${form.crimeSceneLongitude.trim()}`
+      }
+      if (form.crimeSceneMode === 'landmark') {
+        return `Nearby Landmark: ${form.crimeSceneLandmark.trim()}`
+      }
+      if (form.crimeSceneMode === 'jurisdiction') {
+        return `Jurisdiction: ${form.crimeSceneJurisdiction.trim()}`
+      }
+      return `Crime Scene Address: ${form.crimeSceneAddress.trim()}`
+    })()
+
+    try {
+      const token = localStorage.getItem('token')
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch('/api/cases', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: form.title.trim(),
+          firNumber: form.firNumber.trim(),
+          crimeType: form.crimeType.trim(),
+          description: form.description.trim(),
+          location: locationText,
+          dateTime: new Date(form.dateTime).toISOString(),
+          officerAssigned: form.officerAssigned.trim(),
+          priority: form.priority,
+          status: form.status,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.case) {
+          const created: Case = {
+            id: data.case.id,
+            caseId: data.case.caseId,
+            title: data.case.title,
+            firNumber: data.case.firNumber,
+            crimeType: data.case.crimeType,
+            description: data.case.description,
+            location: data.case.location,
+            dateTime: data.case.dateTime,
+            officerAssigned: data.case.officerAssigned,
+            officerId: data.case.officerId || 'USR-001',
+            department: data.case.department,
+            priority: data.case.priority as CasePriority,
+            status: data.case.status as CaseStatus,
+            evidenceCount: 0,
+            createdAt: data.case.createdAt,
+            updatedAt: data.case.updatedAt,
+            livePhoto: livePhoto || undefined,
+            biometricVerified: true,
+            biometricMethod,
+          }
+          setCases([created, ...cases])
+          handleCloseModal()
+          return
+        }
+      }
+    } catch (err) {
+      console.warn('API create case failed, fallback to local state:', err)
+    }
+
+    const fallbackCase: Case = {
       id: `CASE-${String(cases.length + 1).padStart(3, '0')}`,
       caseId: `TC-2026-${String(160 + cases.length).padStart(4, '0')}`,
       title: form.title.trim(),
       firNumber: form.firNumber.trim(),
       crimeType: form.crimeType.trim(),
       description: form.description.trim(),
-      location: (() => {
-        if (form.crimeSceneMode === 'gps') {
-          return `GPS Coordinates: ${form.crimeSceneLatitude.trim()}, ${form.crimeSceneLongitude.trim()}`
-        }
-        if (form.crimeSceneMode === 'landmark') {
-          return `Nearby Landmark: ${form.crimeSceneLandmark.trim()}`
-        }
-        if (form.crimeSceneMode === 'jurisdiction') {
-          return `Jurisdiction: ${form.crimeSceneJurisdiction.trim()}`
-        }
-        return `Crime Scene Address: ${form.crimeSceneAddress.trim()}`
-      })(),
+      location: locationText,
       dateTime: new Date(form.dateTime).toISOString(),
       officerAssigned: form.officerAssigned.trim(),
       officerId: 'USR-001',
@@ -215,7 +296,7 @@ export default function CasesPage() {
       biometricVerified: true,
       biometricMethod,
     }
-    setCases([newCase, ...cases])
+    setCases([fallbackCase, ...cases])
     handleCloseModal()
   }
 
@@ -296,15 +377,19 @@ export default function CasesPage() {
                   </td>
                   <td><StatusBadge status={c.priority} variant={priorityVariant(c.priority)} /></td>
                   <td><StatusBadge status={c.status.replace('_', ' ')} variant={statusVariant(c.status)} /></td>
-                  <td className="text-center text-navy-800">{c.evidenceCount}</td>
+                  <td className="text-center text-navy-800 font-semibold">{c.evidenceCount}</td>
                   <td className="text-xs text-navy-700">{formatDate(c.updatedAt)}</td>
                   <td>
-                    <div className="flex gap-1">
-                      <Link to={`/evidence?case=${c.caseId}`} className="p-1.5 rounded hover:bg-navy-50 text-navy-700 hover:text-navy-800" title="View">
-                        <Eye className="w-4 h-4" />
+                    <div className="flex gap-2 items-center">
+                      <Link
+                        to={`/cases/${c.caseId}`}
+                        className="cyber-btn-secondary !py-1 !px-2.5 text-xs flex items-center gap-1 font-semibold"
+                        title="View Case Investigation Dashboard"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> View Case
                       </Link>
                       {c.status !== 'closed' && (
-                        <button onClick={() => closeCase(c.id)} className="p-1.5 rounded hover:bg-red-50 text-navy-700 hover:text-red-600" title="Close Case">
+                        <button onClick={() => closeCase(c.id)} className="p-1 rounded hover:bg-red-50 text-navy-700 hover:text-red-600" title="Close Case">
                           <XCircle className="w-4 h-4" />
                         </button>
                       )}
