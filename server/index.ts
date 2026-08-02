@@ -922,6 +922,11 @@ app.get('/api/case/verify/:verificationToken', async (req: Request, res: Respons
       courtReadyStatus: 'COURT ADMISSIBLE - Section 65B Verified',
       generationTimestamp: new Date().toISOString(),
     }
+    return res.json(responseData)
+  } catch (error) {
+    next(error)
+  }
+})
 
 // Official Multi-Page Court PDF Case Report Endpoint
 app.get('/api/case/report/pdf/:caseId', async (req: Request, res: Response, next: NextFunction) => {
