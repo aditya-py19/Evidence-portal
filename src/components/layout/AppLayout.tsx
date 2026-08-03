@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FolderOpen, FileSearch, Brain, Shield, Link2,
-  MapPin, Gavel, ScrollText, Bell, Users, Settings, User,
+  MapPin, ScrollText, Bell, Users, Settings, User,
   ChevronLeft, ChevronRight, ShieldCheck, LogOut, Menu, Scale,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -19,7 +19,6 @@ const navItems = [
   { path: '/evidence-passport', label: 'Evidence Passport', icon: ShieldCheck },
   { path: '/geolocation', label: 'Geolocation', icon: MapPin },
   { path: '/blockchain', label: 'Blockchain', icon: Link2 },
-  { path: '/court-verification', label: 'Court Portal', icon: Gavel },
   { path: '/audit-logs', label: 'Audit Logs', icon: ScrollText },
   { path: '/notifications', label: 'Notifications', icon: Bell },
   { path: '/access-control', label: 'Access Control', icon: Shield },

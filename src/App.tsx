@@ -13,7 +13,6 @@ import ChainOfCustodyPage from './pages/ChainOfCustodyPage'
 import EvidencePassportPage from './pages/EvidencePassportPage'
 import GeolocationPage from './pages/GeolocationPage'
 import BlockchainPage from './pages/BlockchainPage'
-import CourtVerificationPage from './pages/CourtVerificationPage'
 import AuditLogsPage from './pages/AuditLogsPage'
 import NotificationsPage from './pages/NotificationsPage'
 import AccessControlPage from './pages/AccessControlPage'
@@ -83,7 +82,6 @@ export default function App() {
       <Route path="/judge-portal" element={<Navigate to="/judge/dashboard" replace />} />
       <Route path="/judge/dashboard" element={<JudgeRoute><JudgeDashboardPage /></JudgeRoute>} />
       <Route path="/judge/cases/:caseId" element={<JudgeRoute><JudicialCaseReviewPage /></JudgeRoute>} />
-      <Route path="/court-verification" element={<ProtectedRoute><CourtVerificationPage /></ProtectedRoute>} />
       <Route path="/audit-logs" element={<ProtectedRoute><AuditLogsPage /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
       <Route path="/access-control" element={<ProtectedRoute><AccessControlPage /></ProtectedRoute>} />
