@@ -79,9 +79,14 @@ export interface Evidence {
   caseId: string
   caseTitle: string
   type: EvidenceType
+  fileType?: string
+  mimeType?: string
+  fileUrl?: string
   fileName: string
   fileSize: string
+  description?: string
   uploadTime: string
+  createdAt?: string
   uploadedBy: string
   uploadedById: string
   status: EvidenceStatus
@@ -92,6 +97,9 @@ export interface Evidence {
   ipfsGatewayUrl?: string
   blockchainTxId: string
   transactionHash?: string
+  blockchainStatus?: 'verified' | 'unverified' | 'pending'
+  integrityStatus?: 'verified' | 'failed'
+  aiResult?: string
   blockNumber: number
   contractAddress?: string
   network?: string

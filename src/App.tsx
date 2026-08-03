@@ -27,6 +27,8 @@ import AdminActivityLogsPage from './pages/admin/AdminActivityLogsPage'
 import PublicCaseVerificationPage from './pages/PublicCaseVerificationPage'
 
 import CaseDetailsPage from './pages/CaseDetailsPage'
+import JudgeDashboardPage from './pages/judge/JudgeDashboardPage'
+import JudicialCaseReviewPage from './pages/judge/JudicialCaseReviewPage'
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin } = useAuth()
@@ -36,26 +38,28 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function JudgeRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth()
+  const { user, isAuthenticated } = useAuth()
+  if (!isAuthenticated) return <Navigate to="/judge-login" replace />
   if (user?.role !== 'judge') return <Navigate to="/dashboard" replace />
   return <AppLayout>{children}</AppLayout>
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (user?.role === 'judge') return <Navigate to="/judge/dashboard" replace />
   return <AppLayout>{children}</AppLayout>
 }
 
 export default function App() {
-  const { isAuthenticated, isAdmin } = useAuth()
+  const { isAuthenticated, isAdmin, user } = useAuth()
 
   return (
     <Routes>
       <Route path="/verify/:verificationToken" element={<PublicCaseVerificationPage />} />
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <PortalSelectionPage />} />
-      <Route path="/officer-login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage portal="officer" />} />
-      <Route path="/judge-login" element={isAuthenticated ? <Navigate to="/judge-portal" replace /> : <LoginPage portal="judge" />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to={user?.role === 'judge' ? '/judge/dashboard' : '/dashboard'} replace /> : <PortalSelectionPage />} />
+      <Route path="/officer-login" element={isAuthenticated ? <Navigate to={user?.role === 'judge' ? '/judge/dashboard' : '/dashboard'} replace /> : <LoginPage portal="officer" />} />
+      <Route path="/judge-login" element={isAuthenticated ? <Navigate to="/judge/dashboard" replace /> : <LoginPage portal="judge" />} />
       <Route path="/admin-login" element={isAuthenticated && isAdmin ? <Navigate to="/admin/dashboard" replace /> : <AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
       <Route path="/admin/officers" element={<AdminRoute><AdminOfficersPage /></AdminRoute>} />
@@ -76,7 +80,9 @@ export default function App() {
       <Route path="/geolocation/:id" element={<ProtectedRoute><GeolocationPage /></ProtectedRoute>} />
       <Route path="/blockchain" element={<ProtectedRoute><BlockchainPage /></ProtectedRoute>} />
       <Route path="/blockchain/:id" element={<ProtectedRoute><BlockchainPage /></ProtectedRoute>} />
-      <Route path="/judge-portal" element={<JudgeRoute><CourtVerificationPage /></JudgeRoute>} />
+      <Route path="/judge-portal" element={<Navigate to="/judge/dashboard" replace />} />
+      <Route path="/judge/dashboard" element={<JudgeRoute><JudgeDashboardPage /></JudgeRoute>} />
+      <Route path="/judge/cases/:caseId" element={<JudgeRoute><JudicialCaseReviewPage /></JudgeRoute>} />
       <Route path="/court-verification" element={<ProtectedRoute><CourtVerificationPage /></ProtectedRoute>} />
       <Route path="/audit-logs" element={<ProtectedRoute><AuditLogsPage /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />

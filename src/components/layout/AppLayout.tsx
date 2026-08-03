@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FolderOpen, FileSearch, Brain, Shield, Link2,
   MapPin, Gavel, ScrollText, Bell, Users, Settings, User,
-  ChevronLeft, ChevronRight, ShieldCheck, LogOut, Menu,
+  ChevronLeft, ChevronRight, ShieldCheck, LogOut, Menu, Scale,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth, useApp } from '../../context/AppContext'
@@ -28,9 +28,17 @@ const navItems = [
   { path: '/profile', label: 'My Profile', icon: User },
 ]
 
+const judgeNavItems = [
+  { path: '/judge/dashboard', label: 'Judicial Roster', icon: Scale },
+  { path: '/notifications', label: 'Notifications', icon: Bell },
+  { path: '/profile', label: 'My Profile', icon: User },
+]
+
 export function Sidebar() {
   const location = useLocation()
+  const { user } = useAuth()
   const { sidebarOpen, toggleSidebar } = useApp()
+  const currentItems = user?.role === 'judge' ? judgeNavItems : navItems
 
   return (
     <aside
@@ -48,15 +56,19 @@ export function Sidebar() {
           </div>
           {sidebarOpen && (
             <div className="overflow-hidden min-w-0">
-              <h1 className="text-sm font-bold text-navy-900 leading-tight">Evidence Portal</h1>
-              <p className="text-[10px] text-saffron-600 font-semibold font-hindi truncate">छत्तीसगढ़ पुलिस</p>
+              <h1 className="text-sm font-bold text-navy-900 leading-tight">
+                {user?.role === 'judge' ? 'Judicial Portal' : 'Evidence Portal'}
+              </h1>
+              <p className="text-[10px] text-saffron-600 font-semibold font-hindi truncate">
+                {user?.role === 'judge' ? 'न्यायिक समीक्षा पीठ' : 'छत्तीसगढ़ पुलिस'}
+              </p>
             </div>
           )}
         </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {navItems.map((item) => {
+        {currentItems.map((item) => {
           const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/')
           const Icon = item.icon
           return (
