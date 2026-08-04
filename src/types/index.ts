@@ -85,6 +85,7 @@ export interface Evidence {
   fileName: string
   fileSize: string
   description?: string
+  note?: string
   uploadTime: string
   createdAt?: string
   uploadedBy: string
@@ -156,16 +157,36 @@ export interface AuditLog {
 
 export interface AccessRequest {
   id: string
-  requester: string
-  requesterRole: UserRole
-  evidenceId: string
-  caseId: string
+  officerId: string
+  officerName: string
+  officerUsername?: string
+  badgeNumber: string
+  department: string
+  rank?: string
+  requestType: string // CASE_ACCESS, EVIDENCE_ACCESS, DOWNLOAD_PERMISSION, REPORT_ACCESS, ACCOUNT_ACTIVATION, ROLE_PERMISSION
+  resourceType: string // case, evidence, report, account, role
+  resourceId: string
+  resourceName?: string
   reason: string
-  status: AccessRequestStatus
-  requestedAt: string
-  reviewedBy?: string
-  reviewedAt?: string
-  reviewReason?: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  reviewedBy?: string | null
+  reviewedAt?: string | null
+  decisionReason?: string | null
+  createdAt: string
+}
+
+export interface AccessRecord {
+  id: string
+  officer: string
+  officerId: string
+  role: string
+  action: string
+  accessType: string
+  timestamp: string
+  result: string
+  ipAddress: string
+  details: string
+  authorizationSource: string
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {

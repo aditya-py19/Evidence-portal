@@ -367,9 +367,9 @@ export const auditLogs: AuditLog[] = [
 ]
 
 export const accessRequests: AccessRequest[] = [
-  { id: 'AR-001', requester: 'Vikram Singh', requesterRole: 'police_officer', evidenceId: 'EVD-TC-2026-0142-001', caseId: 'TC-2026-0142', reason: 'Cross-jurisdiction review for related case in Mumbai', status: 'approved', requestedAt: '2026-07-12T10:00:00Z', reviewedBy: 'Rajesh Kumar', reviewedAt: '2026-07-12T10:30:00Z', reviewReason: 'Approved for read-only access' },
-  { id: 'AR-002', requester: 'Priya Sharma', requesterRole: 'forensic_expert', evidenceId: 'EVD-TC-2026-0138-003', caseId: 'TC-2026-0138', reason: 'Forensic analysis of tampered CCTV footage', status: 'approved', requestedAt: '2026-07-13T08:00:00Z', reviewedBy: 'Rajesh Kumar', reviewedAt: '2026-07-13T08:15:00Z' },
-  { id: 'AR-003', requester: 'Vikram Singh', requesterRole: 'police_officer', evidenceId: 'EVD-TC-2026-0155-001', caseId: 'TC-2026-0155', reason: 'Requesting download for internal review', status: 'pending', requestedAt: '2026-07-15T07:00:00Z' },
+  { id: 'AR-001', officerId: 'usr-001', officerName: 'Vikram Singh', badgeNumber: 'BP-44921', department: 'Delhi Police', requestType: 'CASE_ACCESS', resourceType: 'case', resourceId: 'TC-2026-0142', resourceName: 'UPI Payment Scam', reason: 'Cross-jurisdiction review for related case in Mumbai', status: 'APPROVED', createdAt: '2026-07-12T10:00:00Z', reviewedBy: 'Rajesh Kumar', reviewedAt: '2026-07-12T10:30:00Z', decisionReason: 'Approved for read-only access' },
+  { id: 'AR-002', officerId: 'usr-002', officerName: 'Priya Sharma', badgeNumber: 'FE-88120', department: 'Central Forensic Lab', requestType: 'EVIDENCE_ACCESS', resourceType: 'evidence', resourceId: 'EVD-TC-2026-0138-003', resourceName: 'CCTV Video Stream', reason: 'Forensic analysis of tampered CCTV footage', status: 'APPROVED', createdAt: '2026-07-13T08:00:00Z', reviewedBy: 'Rajesh Kumar', reviewedAt: '2026-07-13T08:15:00Z' },
+  { id: 'AR-003', officerId: 'usr-001', officerName: 'Vikram Singh', badgeNumber: 'BP-44921', department: 'Delhi Police', requestType: 'DOWNLOAD_PERMISSION', resourceType: 'evidence', resourceId: 'EVD-TC-2026-0155-001', resourceName: 'Server Log Archive', reason: 'Requesting download for internal review', status: 'PENDING', createdAt: '2026-07-15T07:00:00Z' },
 ]
 
 export const dashboardStats = {

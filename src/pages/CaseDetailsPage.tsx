@@ -70,6 +70,7 @@ interface EvidenceItem {
   gasUsed: string
   digitalSignature: string
   currentOwner: string
+  note?: string
   currentDepartment: string
   lastAccess: string
   aiAnalysis?: any
@@ -544,6 +545,13 @@ export default function CaseDetailsPage() {
                         <div><strong className="text-navy-700">SHA-256:</strong> {ev.sha256}</div>
                         <div><strong className="text-navy-700">IPFS CID:</strong> {ev.ipfsCid}</div>
                       </div>
+
+                      {ev.note && (
+                        <div className="bg-amber-50/60 p-3 rounded-lg border border-amber-200 text-xs text-navy-900 leading-relaxed whitespace-pre-wrap">
+                          <strong className="text-amber-900 font-bold block mb-1">Evidence Note:</strong>
+                          {ev.note}
+                        </div>
+                      )}
 
                       {/* ACTIONS */}
                       <div className="flex flex-wrap gap-2 pt-1">

@@ -30,6 +30,7 @@ export default function EvidencePage() {
   const [search, setSearch] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [evidenceNote, setEvidenceNote] = useState('')
   const [processingFile, setProcessingFile] = useState<File | null>(null)
 
   const fetchEvidence = useCallback(async () => {
@@ -59,45 +60,35 @@ export default function EvidencePage() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) setSelectedFile(file)
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+    }
   }, [])
 
   const handleUpload = () => {
-    console.log('[DEBUG 1] handleUpload() triggered with file:', selectedFile?.name)
-    if (!selectedFile) {
-      console.warn('[DEBUG 1.1] handleUpload aborted because selectedFile is null')
-      return
-    }
-    console.log('[DEBUG 2] Setting processingFile to:', selectedFile.name)
+    if (!selectedFile) return
     setProcessingFile(selectedFile)
-    setSelectedFile(null)
   }
 
-  console.log('[DEBUG 3] EvidencePage rendering. processingFile =', processingFile?.name, '| selectedFile =', selectedFile?.name)
-
   if (processingFile) {
-    console.log('[DEBUG 4] EvidencePage rendering CyberForensicsProcessingView!')
     return (
       <CyberForensicsProcessingView
         selectedFile={processingFile}
+        evidenceNote={evidenceNote}
         onCancel={() => {
-          console.log('[DEBUG CANCEL] Resetting processingFile to null')
           setProcessingFile(null)
         }}
         onComplete={(newEvidence) => {
-          console.log('[DEBUG COMPLETE] Upload complete! Redirecting to:', newEvidence.id)
           setProcessingFile(null)
+          setEvidenceNote('')
+          setSelectedFile(null)
           setEvidence((prev) => [newEvidence, ...prev])
           navigate(`/ai-verification/${newEvidence.id}`, { state: { evidence: newEvidence } })
         }}
       />
     )
   }
-
-
-
-
 
   return (
     <div className="space-y-6 animate-in">
@@ -126,9 +117,6 @@ export default function EvidencePage() {
             onChange={(e) => {
               const file = e.target.files?.[0]
               if (file) {
-                console.log("Selected:", file.name)
-                console.log("Type:", file.type)
-                console.log("Size:", file.size)
                 setSelectedFile(file)
               }
               e.target.value = ''
@@ -140,19 +128,47 @@ export default function EvidencePage() {
         </div>
 
         {selectedFile && (
-          <div className="mt-4 p-4 rounded-lg bg-cyber-800/50 border border-glass-border">
-            <div className="flex items-center justify-between mb-3">
+          <div className="mt-4 p-4 rounded-xl bg-white border border-navy-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <FileText className="w-5 h-5 text-navy-800" />
                 <div>
-                  <p className="text-sm text-navy-900 font-medium">{selectedFile.name}</p>
-                  <p className="text-xs text-navy-700">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                  <p className="text-sm text-navy-900 font-bold">{selectedFile.name}</p>
+                  <p className="text-xs text-navy-600">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedFile(null)} className="text-navy-700 hover:text-navy-900" title="Remove file">
+              <button
+                onClick={() => { setSelectedFile(null); setEvidenceNote('') }}
+                className="text-navy-500 hover:text-navy-900 p-1 rounded hover:bg-navy-50"
+                title="Remove file"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            <div className="space-y-1.5 pt-3 border-t border-navy-100">
+              <div className="flex items-center justify-between">
+                <label htmlFor="evidence-note" className="block text-xs font-bold text-navy-900">
+                  Evidence Note (Optional)
+                </label>
+                <span className="text-[11px] font-mono font-semibold text-navy-500">
+                  {evidenceNote.length} / 2000
+                </span>
+              </div>
+              <textarea
+                id="evidence-note"
+                rows={3}
+                maxLength={2000}
+                value={evidenceNote}
+                onChange={(e) => setEvidenceNote(e.target.value)}
+                placeholder="Add collection details, observations, source information, or any other relevant note about this evidence..."
+                className="w-full text-xs p-3 rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-navy-800 bg-navy-50/50 text-navy-900 placeholder:text-navy-400"
+              />
+              <p className="text-[11px] text-navy-600 italic">
+                This note will become part of the evidence record and may appear in case reports and judicial review.
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={handleUpload}
@@ -161,7 +177,6 @@ export default function EvidencePage() {
             >
               <Upload className="w-4 h-4" /> Upload & Launch Cyber Forensics Engine
             </button>
-
           </div>
         )}
       </GlassCard>

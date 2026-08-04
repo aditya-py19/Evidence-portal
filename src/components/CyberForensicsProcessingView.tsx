@@ -17,12 +17,14 @@ interface StageItem {
 
 interface CyberForensicsProcessingViewProps {
   selectedFile: File
+  evidenceNote?: string
   onComplete: (evidence: Evidence) => void
   onCancel?: () => void
 }
 
 export function CyberForensicsProcessingView({
   selectedFile,
+  evidenceNote,
   onComplete,
   onCancel,
 }: CyberForensicsProcessingViewProps) {
@@ -64,6 +66,9 @@ export function CyberForensicsProcessingView({
       try {
         const formData = new FormData()
         formData.append('file', selectedFile)
+        if (evidenceNote) {
+          formData.append('note', evidenceNote)
+        }
 
         const token = localStorage.getItem('evidence-portal-token')
         const headers: Record<string, string> = {}

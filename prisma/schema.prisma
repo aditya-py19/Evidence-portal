@@ -29,11 +29,13 @@ model User {
   lastLoginAt        DateTime?
   createdById        String?
   createdBy          User?         @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdUsers       User[]        @relation("UserCreatedBy")
+  createdUsers       User[]          @relation("UserCreatedBy")
   activityLogs       ActivityLog[]
   evidences          Evidence[]
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  officerRequests    AccessRequest[] @relation("OfficerAccessRequests")
+  reviewedRequests   AccessRequest[] @relation("AdminReviewedRequests")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 }
 
 model ActivityLog {
@@ -86,6 +88,7 @@ model Evidence {
   uploader          User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
   uploadedBy        String   @default("Unknown Officer")
   verificationToken String?  @unique @default(cuid())
+  note              String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
@@ -123,5 +126,24 @@ model Notification {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model AccessRequest {
+  id             String    @id @default(cuid())
+  officerId      String
+  officer        User      @relation("OfficerAccessRequests", fields: [officerId], references: [id], onDelete: Cascade)
+  requestType    String    // CASE_ACCESS, EVIDENCE_ACCESS, DOWNLOAD_PERMISSION, REPORT_ACCESS, ACCOUNT_ACTIVATION, ROLE_PERMISSION
+  resourceType   String    // case, evidence, report, account, role
+  resourceId     String
+  resourceName   String?
+  reason         String
+  status         String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedById   String?
+  reviewedBy     User?     @relation("AdminReviewedRequests", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt     DateTime?
+  decisionReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
 
 

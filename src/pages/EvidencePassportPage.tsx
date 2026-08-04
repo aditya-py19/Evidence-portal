@@ -362,6 +362,16 @@ This certificate confirms that the digital evidence payload has been cryptograph
                 ))}
               </div>
 
+              {/* Evidence Note */}
+              <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200 space-y-1.5">
+                <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-amber-700" /> Evidence Note
+                </h4>
+                <p className="text-xs text-navy-900 whitespace-pre-wrap leading-relaxed">
+                  {evidence.note && evidence.note.trim() ? evidence.note : 'No additional evidence note provided.'}
+                </p>
+              </div>
+
               {/* STORAGE INFORMATION REPLACEMENT (NO RAW URLS) */}
               <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-200 space-y-3">
                 <h4 className="text-xs font-bold text-navy-900 uppercase tracking-wider flex items-center gap-2">

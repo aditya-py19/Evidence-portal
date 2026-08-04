@@ -23,6 +23,8 @@ import AdminLoginPage from './pages/admin/AdminLoginPage'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminOfficersPage from './pages/admin/AdminOfficersPage'
 import AdminActivityLogsPage from './pages/admin/AdminActivityLogsPage'
+import OfficerRequestsPage from './pages/admin/OfficerRequestsPage'
+import AccessRecordsPage from './pages/admin/AccessRecordsPage'
 import PublicCaseVerificationPage from './pages/PublicCaseVerificationPage'
 
 import CaseDetailsPage from './pages/CaseDetailsPage'
@@ -61,6 +63,8 @@ export default function App() {
       <Route path="/judge-login" element={isAuthenticated ? <Navigate to="/judge/dashboard" replace /> : <LoginPage portal="judge" />} />
       <Route path="/admin-login" element={isAuthenticated && isAdmin ? <Navigate to="/admin/dashboard" replace /> : <AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+      <Route path="/admin/requests" element={<AdminRoute><OfficerRequestsPage /></AdminRoute>} />
+      <Route path="/admin/access-records" element={<AdminRoute><AccessRecordsPage /></AdminRoute>} />
       <Route path="/admin/officers" element={<AdminRoute><AdminOfficersPage /></AdminRoute>} />
       <Route path="/admin/activity-logs" element={<AdminRoute><AdminActivityLogsPage /></AdminRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

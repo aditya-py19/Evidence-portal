@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, ScrollText, LogOut, ChevronLeft, ChevronRight, Menu,
+  ShieldCheck, FileCheck, User
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth, useApp } from '../../context/AppContext'
@@ -9,8 +10,11 @@ import { PoliceLogo, AshokaEmblem } from '../brand/Logos'
 
 const adminNavItems = [
   { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/admin/officers', label: 'Officer Management', icon: Users },
-  { path: '/admin/activity-logs', label: 'Activity Logs', icon: ScrollText },
+  { path: '/admin/requests', label: 'Officer Requests', icon: FileCheck },
+  { path: '/admin/access-records', label: 'Access Records', icon: ShieldCheck },
+  { path: '/admin/activity-logs', label: 'Audit Logs', icon: ScrollText },
+  { path: '/admin/officers', label: 'Officers / Users', icon: Users },
+  { path: '/profile', label: 'Profile', icon: User },
 ]
 
 function AdminSidebar() {

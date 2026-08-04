@@ -288,6 +288,14 @@ export default function JudicialCaseReviewPage() {
                       {ev.description || 'Digital evidence item uploaded for judicial inspection.'}
                     </p>
 
+                    {/* Evidence Note */}
+                    <div className="bg-amber-50/60 p-3 rounded-lg border border-amber-200 text-xs text-navy-900 leading-relaxed space-y-1">
+                      <strong className="text-amber-900 block font-bold">Evidence Note:</strong>
+                      <p className="whitespace-pre-wrap">
+                        {ev.note && ev.note.trim() ? ev.note : 'No additional evidence note provided.'}
+                      </p>
+                    </div>
+
                     {/* Meta info */}
                     <div className="grid grid-cols-2 gap-2 text-[11px] text-navy-600">
                       <div><span className="font-semibold text-navy-800">Uploaded By: </span>{ev.uploadedBy}</div>
@@ -666,6 +674,14 @@ export default function JudicialCaseReviewPage() {
             <div className="p-3 rounded-lg bg-navy-50 border border-navy-100 space-y-1 font-mono text-[11px] text-navy-900">
               <p><span className="font-bold font-sans">Tx Hash:</span> {selectedPassport.transactionHash || '0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b'}</p>
               <p><span className="font-bold font-sans">Block:</span> {selectedPassport.blockNumber || 59182341}</p>
+            </div>
+
+            {/* Evidence Note */}
+            <div className="p-3 rounded-lg bg-amber-50/60 border border-amber-200 text-xs text-navy-900 space-y-1">
+              <span className="font-bold text-amber-900 block">Evidence Note</span>
+              <p className="whitespace-pre-wrap leading-relaxed">
+                {selectedPassport.note && selectedPassport.note.trim() ? selectedPassport.note : 'No additional evidence note provided.'}
+              </p>
             </div>
           </div>
         </Modal>

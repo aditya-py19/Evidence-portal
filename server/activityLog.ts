@@ -17,6 +17,16 @@ export const ACTIVITY = {
   EVIDENCE_VIEWED: 'Evidence Viewed',
   EVIDENCE_VERIFIED: 'Evidence Verified On-Chain',
   AUDIT_LOG_EXPORT: 'Audit Trail Exported',
+  ACCESS_REQUEST_CREATED: 'Access Request Created',
+  ACCESS_REQUEST_APPROVED: 'Access Request Approved',
+  ACCESS_REQUEST_REJECTED: 'Access Request Rejected',
+  CASE_ACCESS_GRANTED: 'Case Access Granted',
+  EVIDENCE_ACCESS_GRANTED: 'Evidence Access Granted',
+  ACCESS_DENIED: 'Access Denied',
+  CASE_VIEWED: 'Case Viewed',
+  EVIDENCE_DOWNLOADED: 'Evidence Downloaded',
+  REPORT_DOWNLOADED: 'Report Downloaded',
+  LOGIN_FAILED: 'Login Failed',
 } as const
 
 export function getClientIp(req: Request): string {

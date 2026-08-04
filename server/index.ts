@@ -351,6 +351,342 @@ app.get('/api/admin/activity-logs', authenticate, administratorsOnly, async (_re
   } catch (error) { next(error) }
 })
 
+// ==========================================
+// ACCESS REQUESTS & GOVERNANCE ENDPOINTS
+// ==========================================
+
+app.post('/api/access-requests', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const officerId = req.auth!.userId
+    const officer = await prisma.user.findUnique({ where: { id: officerId } })
+    if (!officer) return res.status(401).json({ message: 'Officer identity not found.' })
+
+    const requestType = typeof req.body.requestType === 'string' ? req.body.requestType.trim() : 'CASE_ACCESS'
+    const resourceType = typeof req.body.resourceType === 'string' ? req.body.resourceType.trim() : 'case'
+    const resourceId = typeof req.body.resourceId === 'string' ? req.body.resourceId.trim() : ''
+    const resourceName = typeof req.body.resourceName === 'string' ? req.body.resourceName.trim() : ''
+    const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : ''
+
+    if (!resourceId || !reason) {
+      return res.status(400).json({ message: 'Resource ID and detailed reason for request are required.' })
+    }
+
+    const accessRequest = await prisma.accessRequest.create({
+      data: {
+        officerId,
+        requestType,
+        resourceType,
+        resourceId,
+        resourceName: resourceName || resourceId,
+        reason,
+        status: 'PENDING',
+      },
+      include: {
+        officer: true,
+      },
+    })
+
+    // Log Immutable Audit Event
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.ACCESS_REQUEST_CREATED,
+      username: officer.username,
+      role: officer.role,
+      userId: officer.id,
+      target: resourceName || resourceId,
+      details: `Requested ${requestType} for ${resourceType} (${resourceId}). Reason: ${reason}`,
+    })
+
+    // Dispatch Notification to Admins
+    await prisma.notification.create({
+      data: {
+        type: 'access_request',
+        title: 'New Officer Access Request',
+        message: `${officer.name} (${officer.badgeNumber}) requested ${requestType.replace('_', ' ')} for ${resourceName || resourceId}.`,
+        priority: 'high',
+        link: '/admin/requests',
+      },
+    })
+
+    return res.status(201).json({
+      accessRequest: {
+        id: accessRequest.id,
+        officerId: accessRequest.officerId,
+        officerName: accessRequest.officer.name,
+        badgeNumber: accessRequest.officer.badgeNumber,
+        department: accessRequest.officer.department,
+        role: accessRequest.officer.role,
+        requestType: accessRequest.requestType,
+        resourceType: accessRequest.resourceType,
+        resourceId: accessRequest.resourceId,
+        resourceName: accessRequest.resourceName,
+        reason: accessRequest.reason,
+        status: accessRequest.status,
+        createdAt: accessRequest.createdAt.toISOString(),
+      },
+    })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/access-requests', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    if (!user) return res.status(401).json({ message: 'User identity not found.' })
+
+    const statusParam = typeof req.query.status === 'string' ? req.query.status.trim().toUpperCase() : null
+    const where: any = {}
+
+    if (user.role !== UserRole.administrator) {
+      where.officerId = user.id
+    }
+
+    if (statusParam && ['PENDING', 'APPROVED', 'REJECTED'].includes(statusParam)) {
+      where.status = statusParam
+    }
+
+    const requests = await prisma.accessRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        officer: true,
+        reviewedBy: true,
+      },
+    })
+
+    return res.json({
+      requests: requests.map((r) => ({
+        id: r.id,
+        officerId: r.officerId,
+        officerName: r.officer.name,
+        officerUsername: r.officer.username,
+        badgeNumber: r.officer.badgeNumber,
+        department: r.officer.department,
+        rank: r.officer.role === 'investigating_officer' ? 'Investigating Officer' : r.officer.role === 'forensic_expert' ? 'Forensic Expert' : 'Police Officer',
+        requestType: r.requestType,
+        resourceType: r.resourceType,
+        resourceId: r.resourceId,
+        resourceName: r.resourceName || r.resourceId,
+        reason: r.reason,
+        status: r.status,
+        reviewedBy: r.reviewedBy?.name || null,
+        reviewedAt: r.reviewedAt?.toISOString() || null,
+        decisionReason: r.decisionReason || null,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/access-requests/:id', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const reqId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!reqId) return res.status(400).json({ message: 'Request ID is required.' })
+
+    const r = await prisma.accessRequest.findUnique({
+      where: { id: reqId },
+      include: { officer: true, reviewedBy: true },
+    })
+
+    if (!r) return res.status(404).json({ message: 'Access request not found.' })
+
+    // Check authorization: Admin can see all, Officer can see their own
+    if (req.auth!.role !== UserRole.administrator && r.officerId !== req.auth!.userId) {
+      return res.status(403).json({ message: 'Access denied to this request.' })
+    }
+
+    return res.json({
+      request: {
+        id: r.id,
+        officerId: r.officerId,
+        officerName: r.officer.name,
+        officerUsername: r.officer.username,
+        badgeNumber: r.officer.badgeNumber,
+        department: r.officer.department,
+        rank: r.officer.role === 'investigating_officer' ? 'Investigating Officer' : r.officer.role === 'forensic_expert' ? 'Forensic Expert' : 'Police Officer',
+        requestType: r.requestType,
+        resourceType: r.resourceType,
+        resourceId: r.resourceId,
+        resourceName: r.resourceName || r.resourceId,
+        reason: r.reason,
+        status: r.status,
+        reviewedBy: r.reviewedBy?.name || null,
+        reviewedAt: r.reviewedAt?.toISOString() || null,
+        decisionReason: r.decisionReason || null,
+        createdAt: r.createdAt.toISOString(),
+      },
+    })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/access-requests/:id/approve', authenticate, administratorsOnly, async (req: AuthRequest, res, next) => {
+  try {
+    const reqId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!reqId) return res.status(400).json({ message: 'Request ID is required.' })
+
+    const r = await prisma.accessRequest.findUnique({
+      where: { id: reqId },
+      include: { officer: true },
+    })
+
+    if (!r) return res.status(404).json({ message: 'Access request not found.' })
+    if (r.status !== 'PENDING') {
+      return res.status(400).json({ message: `Request is already ${r.status.toLowerCase()}.` })
+    }
+
+    const admin = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    const decisionReason = typeof req.body.decisionReason === 'string' ? req.body.decisionReason.trim() : 'Approved by Administrator'
+
+    const updated = await prisma.accessRequest.update({
+      where: { id: reqId },
+      data: {
+        status: 'APPROVED',
+        reviewedById: req.auth!.userId,
+        reviewedAt: new Date(),
+        decisionReason,
+      },
+      include: { officer: true, reviewedBy: true },
+    })
+
+    // Log Immutable Audit Event
+    const grantActivity = r.requestType === 'EVIDENCE_ACCESS'
+      ? ACTIVITY.EVIDENCE_ACCESS_GRANTED
+      : ACTIVITY.CASE_ACCESS_GRANTED
+
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.ACCESS_REQUEST_APPROVED,
+      username: admin?.username ?? 'administrator',
+      role: UserRole.administrator,
+      userId: req.auth!.userId,
+      target: r.officer.username,
+      details: `Approved ${r.requestType} for ${r.resourceName || r.resourceId}. Officer: ${r.officer.name}`,
+    })
+
+    await logActivity(prisma, req, {
+      activity: grantActivity,
+      username: r.officer.username,
+      role: r.officer.role,
+      userId: r.officer.id,
+      target: r.resourceName || r.resourceId,
+      details: `Permission granted by Admin ${admin?.name || admin?.username}. Reason: ${decisionReason}`,
+    })
+
+    // Dispatch Notification to Officer
+    await prisma.notification.create({
+      data: {
+        userId: r.officerId,
+        type: 'access_approval',
+        title: 'Access Request Approved',
+        message: `Your request for ${r.resourceName || r.resourceId} (${r.requestType.replace('_', ' ')}) has been approved by Administrator.`,
+        priority: 'high',
+        link: r.resourceType === 'case' ? `/cases/${r.resourceId}` : '/dashboard',
+      },
+    })
+
+    return res.json({
+      message: 'Access request approved successfully.',
+      request: {
+        id: updated.id,
+        officerId: updated.officerId,
+        officerName: updated.officer.name,
+        status: updated.status,
+        reviewedBy: updated.reviewedBy?.name || null,
+        reviewedAt: updated.reviewedAt?.toISOString() || null,
+        decisionReason: updated.decisionReason,
+      },
+    })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/access-requests/:id/reject', authenticate, administratorsOnly, async (req: AuthRequest, res, next) => {
+  try {
+    const reqId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!reqId) return res.status(400).json({ message: 'Request ID is required.' })
+
+    const r = await prisma.accessRequest.findUnique({
+      where: { id: reqId },
+      include: { officer: true },
+    })
+
+    if (!r) return res.status(404).json({ message: 'Access request not found.' })
+    if (r.status !== 'PENDING') {
+      return res.status(400).json({ message: `Request is already ${r.status.toLowerCase()}.` })
+    }
+
+    const admin = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    const decisionReason = typeof req.body.decisionReason === 'string' ? req.body.decisionReason.trim() : 'Rejected by Administrator'
+
+    const updated = await prisma.accessRequest.update({
+      where: { id: reqId },
+      data: {
+        status: 'REJECTED',
+        reviewedById: req.auth!.userId,
+        reviewedAt: new Date(),
+        decisionReason,
+      },
+      include: { officer: true, reviewedBy: true },
+    })
+
+    // Log Immutable Audit Event
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.ACCESS_REQUEST_REJECTED,
+      username: admin?.username ?? 'administrator',
+      role: UserRole.administrator,
+      userId: req.auth!.userId,
+      target: r.officer.username,
+      details: `Rejected ${r.requestType} for ${r.resourceName || r.resourceId}. Reason: ${decisionReason}`,
+    })
+
+    // Dispatch Notification to Officer
+    await prisma.notification.create({
+      data: {
+        userId: r.officerId,
+        type: 'access_rejection',
+        title: 'Access Request Rejected',
+        message: `Your request for ${r.resourceName || r.resourceId} was rejected by Administrator. Reason: ${decisionReason}`,
+        priority: 'medium',
+        link: '/notifications',
+      },
+    })
+
+    return res.json({
+      message: 'Access request rejected.',
+      request: {
+        id: updated.id,
+        officerId: updated.officerId,
+        officerName: updated.officer.name,
+        status: updated.status,
+        reviewedBy: updated.reviewedBy?.name || null,
+        reviewedAt: updated.reviewedAt?.toISOString() || null,
+        decisionReason: updated.decisionReason,
+      },
+    })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/access-records', authenticate, administratorsOnly, async (_req, res, next) => {
+  try {
+    const logs = await prisma.activityLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    })
+
+    return res.json({
+      records: logs.map((log) => ({
+        id: log.id,
+        officer: log.username,
+        officerId: log.userId || 'N/A',
+        role: log.role,
+        action: log.activity,
+        accessType: log.target || 'System',
+        timestamp: log.createdAt.toISOString(),
+        result: log.severity === 'error' ? 'Denied / Failed' : 'Success',
+        ipAddress: log.ipAddress,
+        details: log.details || '',
+        authorizationSource: 'PostgreSQL RBAC & Audit Ledger',
+      })),
+    })
+  } catch (error) { next(error) }
+})
+
 app.get('/api/admin/activity-logs/export', authenticate, administratorsOnly, async (_req, res, next) => {
   try {
     const logs = await prisma.activityLog.findMany({ orderBy: { createdAt: 'desc' } })
@@ -601,6 +937,9 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
       trustScore
     )
 
+    const rawNote = typeof req.body.note === 'string' ? req.body.note.trim() : null
+    const note = rawNote && rawNote.length > 0 ? rawNote : null
+
     const createData = {
       evidenceId,
       caseId: 'TC-2026-0142',
@@ -632,6 +971,7 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
       uploadLocation: { lat: 28.6289, lng: 77.2065, address: 'Cyber Crime Cell HQ, Delhi' },
       uploaderId: uploader?.id,
       uploadedBy: uploaderName,
+      note,
     }
 
     console.log('\n=================== PRISMA CREATE OBJECT LOG ===================')
@@ -1298,6 +1638,11 @@ app.get('/api/case/report/pdf/:caseId', authenticate, async (req: AuthRequest, r
                 <div style="background: #f1f5f9; padding: 6px 10px; border-radius: 6px; margin-bottom: 8px;" class="mono">
                   <b>IPFS Gateway CID:</b> ${ev.ipfsCid}
                 </div>
+                ${ev.note ? `
+                <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 11px; color: #92400e;">
+                  <b>Officer Evidence Note:</b> ${ev.note}
+                </div>
+                ` : ''}
                 <div style="display: flex; gap: 10px; margin-top: 8px;">
                   <a href="/evidence-passport/${ev.id}" class="btn-link" target="_blank">Open Evidence Passport</a>
                   <a href="https://gateway.pinata.cloud/ipfs/${ev.ipfsCid}" class="btn-link" style="background: #475569;" target="_blank">Download Original File</a>
