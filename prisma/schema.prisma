@@ -29,13 +29,16 @@ model User {
   lastLoginAt        DateTime?
   createdById        String?
   createdBy          User?         @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdUsers       User[]          @relation("UserCreatedBy")
-  activityLogs       ActivityLog[]
-  evidences          Evidence[]
-  officerRequests    AccessRequest[] @relation("OfficerAccessRequests")
-  reviewedRequests   AccessRequest[] @relation("AdminReviewedRequests")
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  createdUsers          User[]                  @relation("UserCreatedBy")
+  activityLogs          ActivityLog[]
+  evidences             Evidence[]
+  officerRequests       AccessRequest[]         @relation("OfficerAccessRequests")
+  reviewedRequests      AccessRequest[]         @relation("AdminReviewedRequests")
+  judicialNotes         JudicialNote[]          @relation("JudgeJudicialNotes")
+  judgeClarifications   EvidenceClarification[] @relation("JudgeClarifications")
+  officerClarificationResponses EvidenceClarification[] @relation("OfficerClarificationResponses")
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 }
 
 model ActivityLog {
@@ -87,29 +90,36 @@ model Evidence {
   uploaderId        String?
   uploader          User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
   uploadedBy        String   @default("Unknown Officer")
-  verificationToken String?  @unique @default(cuid())
+  verificationToken String?                 @unique @default(cuid())
   note              String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  clarifications    EvidenceClarification[]
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
 }
 
 model Case {
-  id                  String   @id @default(cuid())
-  caseId              String   @unique
+  id                  String                  @id @default(cuid())
+  caseId              String                  @unique
   title               String
-  firNumber           String   @default("FIR-2026-9042")
-  crimeType           String   @default("Cyber Crime")
+  firNumber           String                  @default("FIR-2026-9042")
+  crimeType           String                  @default("Cyber Crime")
   description         String
-  location            String   @default("Connaught Place, New Delhi")
-  dateTime            String   @default("2026-07-28 14:30")
-  officerAssigned     String   @default("Rajesh Kumar")
+  location            String                  @default("Connaught Place, New Delhi")
+  dateTime            String                  @default("2026-07-28 14:30")
+  officerAssigned     String                  @default("Rajesh Kumar")
   officerId           String?
-  department          String   @default("Cyber Crime Cell, Delhi Police")
-  priority            String   @default("high")
-  status              String   @default("active")
-  verificationToken   String   @unique @default(cuid())
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  department          String                  @default("Cyber Crime Cell, Delhi Police")
+  priority            String                  @default("high")
+  status              String                  @default("active")
+  judicialStatus      String                  @default("PENDING_REVIEW") // PENDING_REVIEW, UNDER_REVIEW, REVIEWED
+  reviewStartedAt     DateTime?
+  reviewCompletedAt   DateTime?
+  reviewedById        String?
+  verificationToken   String                  @unique @default(cuid())
+  judicialNotes       JudicialNote[]
+  clarifications      EvidenceClarification[]
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
 }
 
 
@@ -144,6 +154,36 @@ model AccessRequest {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
+
+model JudicialNote {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  judgeId   String
+  judge     User     @relation("JudgeJudicialNotes", fields: [judgeId], references: [id], onDelete: Cascade)
+  note      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EvidenceClarification {
+  id            String    @id @default(cuid())
+  caseId        String
+  case          Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  evidenceId    String
+  evidence      Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  requestReason String
+  status        String    @default("PENDING") // PENDING, RESPONDED
+  judgeId       String
+  judge         User      @relation("JudgeClarifications", fields: [judgeId], references: [id], onDelete: Cascade)
+  officerId     String?
+  officer       User?     @relation("OfficerClarificationResponses", fields: [officerId], references: [id], onDelete: SetNull)
+  response      String?
+  respondedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 
 
 

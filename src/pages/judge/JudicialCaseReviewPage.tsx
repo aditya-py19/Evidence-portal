@@ -24,6 +24,7 @@ interface CaseData {
   department: string
   priority: string
   status: string
+  judicialStatus?: string
   verificationToken: string
   createdAt: string
   updatedAt: string
@@ -55,6 +56,16 @@ export default function JudicialCaseReviewPage() {
   const [showReportModal, setShowReportModal] = useState(false)
   const [showTechDetails, setShowTechDetails] = useState(false)
 
+  // Judicial Feature State
+  const [privateNote, setPrivateNote] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [noteMsg, setNoteMsg] = useState<string | null>(null)
+  const [clarificationTarget, setClarificationTarget] = useState<Evidence | null>(null)
+  const [clarificationReason, setClarificationReason] = useState('')
+  const [submittingClarification, setSubmittingClarification] = useState(false)
+  const [clarifications, setClarifications] = useState<any[]>([])
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+
   const fetchCaseDetails = useCallback(async () => {
     if (!caseId) return
     setLoading(true)
@@ -78,9 +89,99 @@ export default function JudicialCaseReviewPage() {
     }
   }, [caseId])
 
+  const fetchJudicialNotes = useCallback(async () => {
+    if (!caseId) return
+    try {
+      const res = await apiFetch(`/api/judge/cases/${encodeURIComponent(caseId)}/notes`)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.notes) && data.notes.length > 0) {
+          setPrivateNote(data.notes[0].note)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch judicial notes:', err)
+    }
+  }, [caseId])
+
+  const fetchClarifications = useCallback(async () => {
+    if (!caseId) return
+    try {
+      const res = await apiFetch(`/api/clarifications?caseId=${encodeURIComponent(caseId)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setClarifications(data.clarifications || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch clarifications:', err)
+    }
+  }, [caseId])
+
   useEffect(() => {
     fetchCaseDetails()
-  }, [fetchCaseDetails])
+    fetchJudicialNotes()
+    fetchClarifications()
+  }, [fetchCaseDetails, fetchJudicialNotes, fetchClarifications])
+
+  const handleSavePrivateNote = async () => {
+    if (!caseId || !privateNote.trim()) return
+    setSavingNote(true)
+    setNoteMsg(null)
+    try {
+      const res = await apiFetch(`/api/judge/cases/${encodeURIComponent(caseId)}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: privateNote }),
+      })
+      if (res.ok) {
+        setNoteMsg('Private judicial note saved successfully.')
+      }
+    } catch (err: any) {
+      console.error('Failed to save judicial note:', err)
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  const handleUpdateJudicialStatus = async (newStatus: 'UNDER_REVIEW' | 'REVIEWED') => {
+    if (!caseId) return
+    setUpdatingStatus(true)
+    try {
+      const res = await apiFetch(`/api/judge/cases/${encodeURIComponent(caseId)}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        await fetchCaseDetails()
+      }
+    } catch (err) {
+      console.error('Failed to update judicial status:', err)
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
+
+  const handleSendClarification = async () => {
+    if (!clarificationTarget || !clarificationReason.trim()) return
+    setSubmittingClarification(true)
+    try {
+      const res = await apiFetch(`/api/judge/evidence/${encodeURIComponent(clarificationTarget.evidenceId)}/clarification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestReason: clarificationReason }),
+      })
+      if (res.ok) {
+        setClarificationTarget(null)
+        setClarificationReason('')
+        await fetchClarifications()
+      }
+    } catch (err) {
+      console.error('Failed to send clarification request:', err)
+    } finally {
+      setSubmittingClarification(false)
+    }
+  }
 
   // PDF Report Download Handler
   const handleDownloadPdf = async () => {
@@ -176,6 +277,89 @@ export default function JudicialCaseReviewPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 space-y-8">
+
+        {/* JUDICIAL REVIEW STATUS BANNER */}
+        <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Scale className="w-6 h-6 text-amber-800 shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-amber-900 uppercase">Judicial Review Status:</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                  (caseRecord.judicialStatus || 'PENDING_REVIEW') === 'REVIEWED'
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : (caseRecord.judicialStatus || 'PENDING_REVIEW') === 'UNDER_REVIEW'
+                    ? 'bg-blue-100 text-blue-900 border-blue-300'
+                    : 'bg-amber-100 text-amber-900 border-amber-300'
+                }`}>
+                  {(caseRecord.judicialStatus || 'PENDING_REVIEW').replace('_', ' ')}
+                </span>
+              </div>
+              <p className="text-xs text-navy-700 mt-1">
+                Investigation status is <strong>{caseRecord.status.toUpperCase()}</strong>. Judicial Review Status remains independent.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-center">
+            {(caseRecord.judicialStatus || 'PENDING_REVIEW') === 'PENDING_REVIEW' && (
+              <button
+                onClick={() => handleUpdateJudicialStatus('UNDER_REVIEW')}
+                disabled={updatingStatus}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow flex items-center gap-1.5 transition-colors"
+              >
+                Start Judicial Review
+              </button>
+            )}
+            {(caseRecord.judicialStatus || 'PENDING_REVIEW') === 'UNDER_REVIEW' && (
+              <button
+                onClick={() => handleUpdateJudicialStatus('REVIEWED')}
+                disabled={updatingStatus}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow flex items-center gap-1.5 transition-colors"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Mark Review Complete
+              </button>
+            )}
+            {(caseRecord.judicialStatus || 'PENDING_REVIEW') === 'REVIEWED' && (
+              <span className="text-xs text-emerald-800 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Review Completed
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* PRIVATE JUDICIAL NOTES SECTION */}
+        <div className="bg-white rounded-2xl border border-navy-100 shadow-sm p-6 sm:p-8 space-y-4">
+          <div className="flex items-center justify-between border-b border-navy-100 pb-3">
+            <div>
+              <h2 className="text-base font-bold text-navy-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-amber-700" /> Private Judicial Notes (Confidential)
+              </h2>
+              <p className="text-xs text-navy-600 mt-0.5">
+                Maintain private bench notes for this hearing. Stored separately in PostgreSQL — strictly omitted from public QR pages & public reports.
+              </p>
+            </div>
+            {noteMsg && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">{noteMsg}</span>}
+          </div>
+
+          <textarea
+            rows={3}
+            value={privateNote}
+            onChange={(e) => setPrivateNote(e.target.value)}
+            placeholder="Write private observations, officer clarification requirements, or hearing notes here..."
+            className="w-full text-xs p-3.5 rounded-xl border border-navy-200 focus:outline-none focus:ring-2 focus:ring-navy-800 bg-navy-50/50 text-navy-900 placeholder:text-navy-400 font-medium"
+          />
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleSavePrivateNote}
+              disabled={savingNote || !privateNote.trim()}
+              className="cyber-btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
+            >
+              Save Private Judicial Note
+            </button>
+          </div>
+        </div>
 
         {/* SECTION 1: CASE DETAILS */}
         <section className="bg-white rounded-2xl border border-navy-100 shadow-sm p-6 sm:p-8 space-y-6">
@@ -315,8 +499,27 @@ export default function JudicialCaseReviewPage() {
                       </div>
                     </div>
 
+                    {/* Clarification Requests / Responses */}
+                    {clarifications.filter((cl) => cl.evidenceId === ev.evidenceId || cl.evidenceId === ev.id).length > 0 && (
+                      <div className="bg-blue-50/70 p-3 rounded-lg border border-blue-200 text-xs space-y-1.5">
+                        <strong className="text-blue-900 font-bold block">Judicial Clarifications:</strong>
+                        {clarifications.filter((cl) => cl.evidenceId === ev.evidenceId || cl.evidenceId === ev.id).map((cl) => (
+                          <div key={cl.id} className="space-y-1 border-t border-blue-200 pt-1.5 first:border-0 first:pt-0">
+                            <p className="text-navy-900 font-medium"><strong>Request:</strong> "{cl.requestReason}"</p>
+                            {cl.response ? (
+                              <p className="text-emerald-900 bg-emerald-50 p-2 rounded border border-emerald-200 font-medium">
+                                <strong>Officer Response ({cl.officerName || 'Officer'}):</strong> "{cl.response}"
+                              </p>
+                            ) : (
+                              <p className="text-amber-800 italic text-[11px]">Awaiting response from Investigating Officer...</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Action Buttons */}
-                    <div className="flex items-center gap-2 pt-2">
+                    <div className="flex flex-wrap items-center gap-2 pt-2">
                       <button
                         type="button"
                         onClick={() => setSelectedMedia(ev)}
@@ -329,7 +532,17 @@ export default function JudicialCaseReviewPage() {
                         onClick={() => setSelectedPassport(ev)}
                         className="flex-1 py-2 px-3 rounded-lg border border-navy-200 hover:bg-navy-50 text-navy-800 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
                       >
-                        <FileText className="w-3.5 h-3.5" /> View Evidence Passport
+                        <FileText className="w-3.5 h-3.5" /> Passport
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setClarificationTarget(ev)
+                          setClarificationReason('')
+                        }}
+                        className="py-2 px-3 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-700" /> Request Clarification
                       </button>
                     </div>
                   </div>
@@ -774,6 +987,58 @@ export default function JudicialCaseReviewPage() {
             caseId={caseRecord.caseId}
             title={caseRecord.title}
           />
+        </Modal>
+      )}
+
+      {/* 6. Clarification Request Modal */}
+      {clarificationTarget && (
+        <Modal
+          isOpen={Boolean(clarificationTarget)}
+          onClose={() => setClarificationTarget(null)}
+          title={`Request Clarification — Evidence ${clarificationTarget.evidenceId}`}
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 rounded-lg bg-navy-50 border border-navy-100 space-y-1">
+              <p className="font-bold text-navy-900">{clarificationTarget.fileName}</p>
+              <p className="text-[11px] text-navy-600 font-mono">SHA-256: {clarificationTarget.sha256}</p>
+              <p className="text-[11px] text-navy-600">Uploaded by: {clarificationTarget.uploadedBy}</p>
+            </div>
+
+            <div>
+              <label className="block font-bold text-navy-900 mb-1">
+                Clarification Reason / Question for Investigating Officer *
+              </label>
+              <textarea
+                required
+                rows={4}
+                value={clarificationReason}
+                onChange={(e) => setClarificationReason(e.target.value)}
+                placeholder="e.g. Please clarify the source device and exact collection timestamp for this evidence payload."
+                className="w-full p-3 rounded-xl border border-navy-200 focus:outline-none focus:ring-2 focus:ring-navy-800 text-navy-900 bg-white"
+              />
+              <p className="text-[11px] text-navy-500 italic mt-1">
+                Submitting this request will dispatch an instant notification to the assigned officer. Evidence integrity status is unaffected.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-navy-100">
+              <button
+                type="button"
+                onClick={() => setClarificationTarget(null)}
+                className="cyber-btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={submittingClarification || !clarificationReason.trim()}
+                onClick={handleSendClarification}
+                className="cyber-btn-primary text-xs flex items-center gap-1.5"
+              >
+                Send Request to Officer
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

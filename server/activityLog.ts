@@ -27,6 +27,13 @@ export const ACTIVITY = {
   EVIDENCE_DOWNLOADED: 'Evidence Downloaded',
   REPORT_DOWNLOADED: 'Report Downloaded',
   LOGIN_FAILED: 'Login Failed',
+  JUDGE_CASE_REVIEW_STARTED: 'Judicial Review Started',
+  JUDGE_CASE_REVIEW_COMPLETED: 'Judicial Review Completed',
+  JUDICIAL_NOTE_CREATED: 'Judicial Note Created',
+  JUDICIAL_NOTE_UPDATED: 'Judicial Note Updated',
+  JUDICIAL_CLARIFICATION_REQUESTED: 'Judicial Clarification Requested',
+  JUDICIAL_CLARIFICATION_RESPONDED: 'Judicial Clarification Responded',
+  JUDGE_REPORT_DOWNLOADED: 'Judicial Case Report Downloaded',
 } as const
 
 export function getClientIp(req: Request): string {

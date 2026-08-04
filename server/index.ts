@@ -687,6 +687,304 @@ app.get('/api/access-records', authenticate, administratorsOnly, async (_req, re
   } catch (error) { next(error) }
 })
 
+// ==========================================
+// JUDICIAL PORTAL & REVIEW ENDPOINTS
+// ==========================================
+
+app.post('/api/judge/cases/:caseId/status', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    if (req.auth!.role !== UserRole.judge && req.auth!.role !== UserRole.administrator) {
+      return res.status(403).json({ message: 'Judicial Portal access required.' })
+    }
+
+    const param = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId
+    if (!param) return res.status(400).json({ message: 'Case ID is required.' })
+
+    const judicialStatus = typeof req.body.status === 'string' ? req.body.status.trim().toUpperCase() : ''
+    if (!['PENDING_REVIEW', 'UNDER_REVIEW', 'REVIEWED'].includes(judicialStatus)) {
+      return res.status(400).json({ message: 'Invalid judicial status. Must be PENDING_REVIEW, UNDER_REVIEW, or REVIEWED.' })
+    }
+
+    const targetCase = await prisma.case.findFirst({
+      where: { OR: [{ caseId: param }, { id: param }] },
+    })
+
+    if (!targetCase) return res.status(404).json({ message: `Case ${param} not found.` })
+
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+    const updateData: any = {
+      judicialStatus,
+      reviewedById: req.auth!.userId,
+    }
+
+    if (judicialStatus === 'UNDER_REVIEW' && !targetCase.reviewStartedAt) {
+      updateData.reviewStartedAt = new Date()
+    }
+    if (judicialStatus === 'REVIEWED') {
+      updateData.reviewCompletedAt = new Date()
+    }
+
+    const updatedCase = await prisma.case.update({
+      where: { id: targetCase.id },
+      data: updateData,
+    })
+
+    // Log Immutable Audit Event
+    const activityName = judicialStatus === 'UNDER_REVIEW'
+      ? ACTIVITY.JUDGE_CASE_REVIEW_STARTED
+      : ACTIVITY.JUDGE_CASE_REVIEW_COMPLETED
+
+    await logActivity(prisma, req, {
+      activity: activityName,
+      username: user?.username ?? 'judge',
+      role: user?.role ?? UserRole.judge,
+      userId: req.auth!.userId,
+      target: targetCase.caseId,
+      details: `Judicial review status updated to ${judicialStatus} by ${user?.name || user?.username}`,
+    })
+
+    return res.json({
+      message: `Judicial review status updated to ${judicialStatus}.`,
+      case: updatedCase,
+    })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/judge/cases/:caseId/notes', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const param = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId
+    if (!param) return res.status(400).json({ message: 'Case ID is required.' })
+
+    const targetCase = await prisma.case.findFirst({
+      where: { OR: [{ caseId: param }, { id: param }] },
+    })
+
+    if (!targetCase) return res.status(404).json({ message: `Case ${param} not found.` })
+
+    const notes = await prisma.judicialNote.findMany({
+      where: {
+        caseId: targetCase.id,
+        judgeId: req.auth!.userId,
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    return res.json({ notes })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/judge/cases/:caseId/notes', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    if (req.auth!.role !== UserRole.judge && req.auth!.role !== UserRole.administrator) {
+      return res.status(403).json({ message: 'Only Judicial Officers may maintain private judicial notes.' })
+    }
+
+    const param = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId
+    if (!param) return res.status(400).json({ message: 'Case ID is required.' })
+
+    const noteText = typeof req.body.note === 'string' ? req.body.note.trim() : ''
+    if (!noteText) return res.status(400).json({ message: 'Note text cannot be empty.' })
+
+    const targetCase = await prisma.case.findFirst({
+      where: { OR: [{ caseId: param }, { id: param }] },
+    })
+
+    if (!targetCase) return res.status(404).json({ message: `Case ${param} not found.` })
+
+    const judge = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+
+    const existing = await prisma.judicialNote.findFirst({
+      where: { caseId: targetCase.id, judgeId: req.auth!.userId },
+    })
+
+    let noteRecord
+    let activityName = ACTIVITY.JUDICIAL_NOTE_CREATED
+
+    if (existing) {
+      noteRecord = await prisma.judicialNote.update({
+        where: { id: existing.id },
+        data: { note: noteText },
+      })
+      activityName = ACTIVITY.JUDICIAL_NOTE_UPDATED
+    } else {
+      noteRecord = await prisma.judicialNote.create({
+        data: {
+          caseId: targetCase.id,
+          judgeId: req.auth!.userId,
+          note: noteText,
+        },
+      })
+    }
+
+    await logActivity(prisma, req, {
+      activity: activityName,
+      username: judge?.username ?? 'judge',
+      role: judge?.role ?? UserRole.judge,
+      userId: req.auth!.userId,
+      target: targetCase.caseId,
+      details: `Maintained private judicial note for Case ${targetCase.caseId}`,
+    })
+
+    return res.json({ note: noteRecord, message: 'Private judicial note saved successfully.' })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/judge/evidence/:evidenceId/clarification', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    if (req.auth!.role !== UserRole.judge && req.auth!.role !== UserRole.administrator) {
+      return res.status(403).json({ message: 'Only Judicial Officers may request evidence clarification.' })
+    }
+
+    const evParam = Array.isArray(req.params.evidenceId) ? req.params.evidenceId[0] : req.params.evidenceId
+    if (!evParam) return res.status(400).json({ message: 'Evidence ID is required.' })
+
+    const requestReason = typeof req.body.requestReason === 'string' ? req.body.requestReason.trim() : ''
+    if (!requestReason) return res.status(400).json({ message: 'Clarification reason is required.' })
+
+    const evidence = await prisma.evidence.findFirst({
+      where: { OR: [{ evidenceId: evParam }, { id: evParam }] },
+    })
+
+    if (!evidence) return res.status(404).json({ message: `Evidence item ${evParam} not found.` })
+
+    const targetCase = await prisma.case.findFirst({
+      where: { caseId: evidence.caseId },
+    })
+
+    const judge = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+
+    const clarification = await prisma.evidenceClarification.create({
+      data: {
+        caseId: targetCase?.id || evidence.caseId,
+        evidenceId: evidence.id,
+        requestReason,
+        judgeId: req.auth!.userId,
+        status: 'PENDING',
+      },
+    })
+
+    // Log Audit Event
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.JUDICIAL_CLARIFICATION_REQUESTED,
+      username: judge?.username ?? 'judge',
+      role: judge?.role ?? UserRole.judge,
+      userId: req.auth!.userId,
+      target: evidence.evidenceId,
+      details: `Requested clarification on Evidence ${evidence.evidenceId}: ${requestReason}`,
+    })
+
+    // Dispatch Notification to Officer
+    await prisma.notification.create({
+      data: {
+        type: 'verify',
+        title: 'Judicial Clarification Requested',
+        message: `${judge?.name || 'Hon\'ble Judge'} requested clarification for Evidence ${evidence.evidenceId} in Case ${evidence.caseId}: "${requestReason}"`,
+        priority: 'high',
+        link: `/cases/${evidence.caseId}`,
+      },
+    })
+
+    return res.status(201).json({
+      clarification,
+      message: 'Clarification request sent to Investigating Officer.',
+    })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/clarifications', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const caseIdParam = typeof req.query.caseId === 'string' ? req.query.caseId.trim() : null
+    const where: any = {}
+
+    if (caseIdParam) {
+      const c = await prisma.case.findFirst({ where: { OR: [{ caseId: caseIdParam }, { id: caseIdParam }] } })
+      if (c) where.caseId = c.id
+    }
+
+    const clarifications = await prisma.evidenceClarification.findMany({
+      where,
+      include: {
+        judge: true,
+        officer: true,
+        evidence: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return res.json({
+      clarifications: clarifications.map((cl) => ({
+        id: cl.id,
+        caseId: cl.caseId,
+        evidenceId: cl.evidence.evidenceId,
+        evidenceFileName: cl.evidence.fileName,
+        requestReason: cl.requestReason,
+        status: cl.status,
+        judgeName: cl.judge.name,
+        officerName: cl.officer?.name || null,
+        response: cl.response || null,
+        respondedAt: cl.respondedAt?.toISOString() || null,
+        createdAt: cl.createdAt.toISOString(),
+      })),
+    })
+  } catch (error) { next(error) }
+})
+
+app.post('/api/clarifications/:id/respond', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    if (!idParam) return res.status(400).json({ message: 'Clarification ID is required.' })
+
+    const responseText = typeof req.body.response === 'string' ? req.body.response.trim() : ''
+    if (!responseText) return res.status(400).json({ message: 'Clarification response cannot be empty.' })
+
+    const cl = await prisma.evidenceClarification.findUnique({
+      where: { id: idParam },
+      include: { evidence: true, judge: true },
+    })
+
+    if (!cl) return res.status(404).json({ message: 'Clarification request not found.' })
+
+    const officer = await prisma.user.findUnique({ where: { id: req.auth!.userId } })
+
+    const updated = await prisma.evidenceClarification.update({
+      where: { id: idParam },
+      data: {
+        status: 'RESPONDED',
+        response: responseText,
+        respondedAt: new Date(),
+        officerId: req.auth!.userId,
+      },
+    })
+
+    // Log Audit Event
+    await logActivity(prisma, req, {
+      activity: ACTIVITY.JUDICIAL_CLARIFICATION_RESPONDED,
+      username: officer?.username ?? 'officer',
+      role: officer?.role ?? UserRole.investigating_officer,
+      userId: req.auth!.userId,
+      target: cl.evidence.evidenceId,
+      details: `Officer ${officer?.name} responded to Judicial Clarification for Evidence ${cl.evidence.evidenceId}`,
+    })
+
+    // Dispatch Notification to Judge
+    await prisma.notification.create({
+      data: {
+        userId: cl.judgeId,
+        type: 'verify',
+        title: 'Judicial Clarification Responded',
+        message: `Officer ${officer?.name || officer?.username} provided clarification for Evidence ${cl.evidence.evidenceId}: "${responseText}"`,
+        priority: 'high',
+        link: `/judge/cases/${cl.caseId}`,
+      },
+    })
+
+    return res.json({
+      clarification: updated,
+      message: 'Clarification response submitted to Hon\'ble Judge.',
+    })
+  } catch (error) { next(error) }
+})
+
 app.get('/api/admin/activity-logs/export', authenticate, administratorsOnly, async (_req, res, next) => {
   try {
     const logs = await prisma.activityLog.findMany({ orderBy: { createdAt: 'desc' } })
