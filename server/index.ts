@@ -1705,21 +1705,17 @@ app.post('/api/evidence/secure-capture', authenticate, upload.single('file'), as
         ? `Secure camera capture registered for Case ${targetCase.caseId}. SHA-256: ${serverSha256}`
         : `Unassigned / Rapid field evidence capture registered (${evidenceId}). SHA-256: ${serverSha256}`,
     })
-      role: userRole as UserRole,
-      target: dbRecord.evidenceId,
-      severity: 'info',
-      userId: req.auth!.userId,
-      details: `Secure camera capture registered for Case ${targetCase.caseId}. SHA-256: ${serverSha256}`,
-    })
 
     // Dispatch Notification
     await prisma.notification.create({
       data: {
         type: 'upload',
         title: 'Secure Evidence Registered',
-        message: `Secure camera evidence ${dbRecord.evidenceId} was successfully registered to Case ${targetCase.caseId}.`,
+        message: targetCase
+          ? `Secure camera evidence ${dbRecord.evidenceId} was successfully registered to Case ${targetCase.caseId}.`
+          : `Unassigned secure camera evidence ${dbRecord.evidenceId} was registered.`,
         priority: 'high',
-        link: `/cases/${targetCase.caseId}`,
+        link: targetCase ? `/cases/${targetCase.caseId}` : `/evidence`,
       },
     })
 
