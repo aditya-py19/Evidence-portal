@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { PageHeader, GlassCard, SearchInput, StatusBadge, TrustMeter } from '../components/ui'
 import { CyberForensicsProcessingView } from '../components/CyberForensicsProcessingView'
-import { formatDate, getTrustLevelBg } from '../lib/utils'
+import { formatDate, getTrustLevelBg, isInvestigationRole } from '../lib/utils'
 import { apiFetch } from '../lib/api'
 import { useAuth } from '../context/AppContext'
 import type { Evidence, EvidenceType, Case } from '../types'
@@ -28,7 +28,7 @@ const statusVariant = (s: string) => {
 export default function EvidencePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const isInvestigationOfficer = !!(user && ['police_officer', 'investigating_officer', 'forensic_expert'].includes(user.role))
+  const isInvestigationOfficer = isInvestigationRole(user?.role)
   const [evidence, setEvidence] = useState<Evidence[]>([])
   const [cases, setCases] = useState<Case[]>([])
   const [search, setSearch] = useState('')

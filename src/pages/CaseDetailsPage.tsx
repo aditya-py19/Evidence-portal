@@ -8,7 +8,7 @@ import {
 import { PageHeader, GlassCard, StatusBadge, Modal, TabGroup } from '../components/ui'
 import { QRShareSection } from '../components/QRShareSection'
 import { CyberForensicsProcessingView } from '../components/CyberForensicsProcessingView'
-import { formatDate } from '../lib/utils'
+import { formatDate, isInvestigationRole } from '../lib/utils'
 import { apiFetch, downloadAuthenticatedBlob } from '../lib/api'
 import { useAuth } from '../context/AppContext'
 
@@ -100,7 +100,7 @@ interface AuditLogItem {
 export default function CaseDetailsPage() {
   const { caseId } = useParams<{ caseId: string }>()
   const { user } = useAuth()
-  const isOfficer = !!(user && ['police_officer', 'investigating_officer', 'forensic_expert'].includes(user.role))
+  const isOfficer = isInvestigationRole(user?.role)
 
   const [caseRecord, setCaseRecord] = useState<CaseData | null>(null)
   const [team, setTeam] = useState<TeamMember[]>([])

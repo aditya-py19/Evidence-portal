@@ -220,6 +220,16 @@ app.get('/api/admin/me', authenticate, administratorsOnly, async (req: AuthReque
 const officerRoles: UserRole[] = [UserRole.police_officer, UserRole.investigating_officer, UserRole.forensic_expert]
 const AUTHORIZED_INVESTIGATION_ROLES: UserRole[] = officerRoles
 
+function normalizeRole(rawRole?: string | null): string {
+  if (!rawRole) return ''
+  return String(rawRole).trim().toLowerCase().replace(/[\s-]+/g, '_')
+}
+
+function isInvestigationRole(rawRole?: string | null): boolean {
+  const norm = normalizeRole(rawRole)
+  return norm === 'police_officer' || norm === 'investigating_officer' || norm === 'forensic_expert'
+}
+
 app.get('/api/admin/officers', authenticate, administratorsOnly, async (_req, res, next) => {
   try {
     const officers = await prisma.user.findMany({
@@ -1122,7 +1132,7 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
     }
 
     const userRole = req.auth?.role
-    if (!userRole || !AUTHORIZED_INVESTIGATION_ROLES.includes(userRole as UserRole)) {
+    if (!isInvestigationRole(userRole)) {
       if (req.auth?.userId) {
         try {
           const deniedUser = await prisma.user.findUnique({ where: { id: req.auth.userId } })
@@ -1473,7 +1483,7 @@ app.post('/api/evidence/upload', authenticate, upload.single('file'), async (req
 app.post('/api/evidence/secure-capture', authenticate, upload.single('file'), async (req: AuthRequest, res, next) => {
   try {
     const userRole = req.auth?.role
-    if (!userRole || ![UserRole.police_officer, UserRole.investigating_officer, UserRole.forensic_expert].includes(userRole as UserRole)) {
+    if (!isInvestigationRole(userRole)) {
       return res.status(403).json({ message: 'Secure Evidence Camera is available to authorized investigating officers.' })
     }
 
@@ -2539,7 +2549,7 @@ app.get('/api/evidence/:id/verify-on-chain', authenticate, handleVerifyOnChain)
 app.patch('/api/evidence/:evidenceId/assign-case', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const userRole = req.auth!.role
-    if (!userRole || !AUTHORIZED_INVESTIGATION_ROLES.includes(userRole as UserRole)) {
+    if (!isInvestigationRole(userRole)) {
       if (req.auth?.userId) {
         try {
           const deniedUser = await prisma.user.findUnique({ where: { id: req.auth.userId } })

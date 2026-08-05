@@ -93,3 +93,20 @@ export function truncateHash(hash: string, len = 12): string {
   if (hash.length <= len * 2) return hash
   return `${hash.slice(0, len)}...${hash.slice(-len)}`
 }
+
+export function normalizeRole(rawRole?: string | null): string {
+  if (!rawRole) return ''
+  return String(rawRole)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+export function isInvestigationRole(rawRole?: string | null): boolean {
+  const normalized = normalizeRole(rawRole)
+  return (
+    normalized === 'police_officer' ||
+    normalized === 'investigating_officer' ||
+    normalized === 'forensic_expert'
+  )
+}
