@@ -58,8 +58,9 @@ model ActivityLog {
 model Evidence {
   id                String   @id @default(cuid())
   evidenceId        String   @unique
-  caseId            String   @default("TC-2026-0142")
-  caseTitle         String   @default("Cyber Fraud – UPI Payment Scam")
+  caseId            String?
+  caseTitle         String?
+  assignmentStatus  String   @default("ASSIGNED") // ASSIGNED, UNASSIGNED
   type              String   @default("image")
   fileName          String
   fileSize          String
@@ -89,10 +90,20 @@ model Evidence {
   uploadLocation    Json?
   uploaderId        String?
   uploader          User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
-  uploadedBy        String   @default("Unknown Officer")
+  uploadedBy        String                  @default("Unknown Officer")
   verificationToken String?                 @unique @default(cuid())
   note              String?
   clarifications    EvidenceClarification[]
+  captureSource     String                  @default("WEB") // WEB, SECURE_EVIDENCE_CAMERA
+  captureMode       String?                 // PHOTO, VIDEO
+  capturedAt        DateTime?
+  captureStartedAt  DateTime?
+  captureEndedAt    DateTime?
+  captureDuration   Int?
+  clientSha256      String?
+  serverSha256      String?
+  locationStatus    String?                 // RECORDED, UNAVAILABLE, PERMISSION_DENIED
+  locationPoints    EvidenceLocationPoint[]
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 }
@@ -183,6 +194,18 @@ model EvidenceClarification {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
+
+model EvidenceLocationPoint {
+  id         String   @id @default(cuid())
+  evidenceId String
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  timestamp  DateTime
+  latitude   Float
+  longitude  Float
+  accuracy   Float?
+  createdAt  DateTime @default(now())
+}
+
 
 
 

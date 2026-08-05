@@ -34,6 +34,14 @@ export const ACTIVITY = {
   JUDICIAL_CLARIFICATION_REQUESTED: 'Judicial Clarification Requested',
   JUDICIAL_CLARIFICATION_RESPONDED: 'Judicial Clarification Responded',
   JUDGE_REPORT_DOWNLOADED: 'Judicial Case Report Downloaded',
+  SECURE_CAPTURE_STARTED: 'Secure Capture Started',
+  SECURE_CAPTURE_COMPLETED: 'Secure Capture Completed',
+  CAPTURE_LOCATION_RECORDED: 'Capture Location Recorded',
+  CAPTURE_SHA256_GENERATED: 'Capture SHA-256 Generated',
+  SERVER_HASH_VERIFIED: 'Server Hash Verified',
+  INTEGRITY_MISMATCH: 'Integrity Mismatch Detected',
+  UNASSIGNED_EVIDENCE_REGISTERED: 'Unassigned Evidence Registered',
+  EVIDENCE_ASSIGNED_TO_CASE: 'Evidence Assigned to Case',
 } as const
 
 export function getClientIp(req: Request): string {

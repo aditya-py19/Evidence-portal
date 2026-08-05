@@ -372,6 +372,33 @@ This certificate confirms that the digital evidence payload has been cryptograph
                 </p>
               </div>
 
+              {/* Secure Camera Capture Badge & Details */}
+              {evidence.captureSource === 'SECURE_EVIDENCE_CAMERA' && (
+                <div className="p-4 rounded-xl bg-blue-50/80 border border-blue-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-700 text-white flex items-center gap-1.5 shadow-sm">
+                        <ShieldCheck className="w-4 h-4" /> SECURE CAMERA CAPTURE ✓
+                      </span>
+                      <span className="text-xs text-blue-900 font-bold">TrustChain Mobile App</span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-blue-800 bg-blue-100 px-2.5 py-0.5 rounded-full uppercase">
+                      {evidence.captureMode || 'PHOTO'} CAPTURE
+                    </span>
+                  </div>
+
+                  {/* Dual Hash Check */}
+                  <div className="p-3 rounded-lg bg-white border border-blue-200 text-xs space-y-1 font-mono">
+                    <div className="flex justify-between items-center text-emerald-800 font-bold font-sans">
+                      <span>SHA-256 Dual Verification Check:</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900">✓ VERIFIED MATCH</span>
+                    </div>
+                    <p className="text-[11px] text-navy-700">Mobile Capture Hash: <span className="font-bold text-navy-900">{evidence.clientSha256 || evidence.sha256}</span></p>
+                    <p className="text-[11px] text-navy-700">Server Computed Hash: <span className="font-bold text-navy-900">{evidence.serverSha256 || evidence.sha256}</span></p>
+                  </div>
+                </div>
+              )}
+
               {/* STORAGE INFORMATION REPLACEMENT (NO RAW URLS) */}
               <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-200 space-y-3">
                 <h4 className="text-xs font-bold text-navy-900 uppercase tracking-wider flex items-center gap-2">

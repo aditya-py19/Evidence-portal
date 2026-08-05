@@ -17,6 +17,8 @@ interface StageItem {
 
 interface CyberForensicsProcessingViewProps {
   selectedFile: File
+  caseId?: string
+  evidenceType?: string
   evidenceNote?: string
   onComplete: (evidence: Evidence) => void
   onCancel?: () => void
@@ -24,6 +26,8 @@ interface CyberForensicsProcessingViewProps {
 
 export function CyberForensicsProcessingView({
   selectedFile,
+  caseId,
+  evidenceType,
   evidenceNote,
   onComplete,
   onCancel,
@@ -66,6 +70,12 @@ export function CyberForensicsProcessingView({
       try {
         const formData = new FormData()
         formData.append('file', selectedFile)
+        if (caseId) {
+          formData.append('caseId', caseId)
+        }
+        if (evidenceType) {
+          formData.append('evidenceType', evidenceType)
+        }
         if (evidenceNote) {
           formData.append('note', evidenceNote)
         }

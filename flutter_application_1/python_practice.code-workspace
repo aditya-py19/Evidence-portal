@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../../../OneDrive/Desktop/python_practice"
+		},
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"python-envs.defaultEnvManager": "ms-python.python:system"
+	}
+}

@@ -117,6 +117,14 @@ export interface Evidence {
   allowedRadius: number
   crimeLocation: { lat: number; lng: number; address: string }
   uploadLocation: { lat: number; lng: number; address: string }
+  captureSource?: 'WEB' | 'SECURE_EVIDENCE_CAMERA'
+  captureMode?: 'PHOTO' | 'VIDEO'
+  capturedAt?: string
+  clientSha256?: string
+  serverSha256?: string
+  locationStatus?: string
+  locationPoints?: Array<{ id?: string; timestamp: string; latitude: number; longitude: number; accuracy?: number }>
+  assignmentStatus?: 'UNASSIGNED' | 'ASSIGNED'
 }
 
 export interface ChainEvent {

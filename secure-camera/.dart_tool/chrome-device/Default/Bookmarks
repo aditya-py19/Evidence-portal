@@ -1,0 +1,139 @@
+{
+   "checksum": "7f29f3925283528e88f1af82951c2484",
+   "roots": {
+      "bookmark_bar": {
+         "children": [ {
+            "date_added": "13430326266398791",
+            "date_last_used": "0",
+            "guid": "b0c888c8-1268-4f32-842e-16568cc77e6a",
+            "id": "15",
+            "name": "Lenovo Support",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://support.lenovo.com/",
+            "visit_count": 0
+         }, {
+            "date_added": "13430326266398550",
+            "date_last_used": "0",
+            "guid": "4c51f349-5414-40dd-b313-bee52fab2dc3",
+            "id": "14",
+            "name": "Lenovo",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://www.lenovo.com/",
+            "visit_count": 0
+         }, {
+            "date_added": "13430326266398061",
+            "date_last_used": "0",
+            "guid": "e9cab0cf-dec1-4184-95f5-e29487097b12",
+            "id": "13",
+            "name": "McAfee",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://www.mcafee.com/consumer/v/browserfav/lenovo.html",
+            "visit_count": 0
+         }, {
+            "date_added": "13430312035925044",
+            "date_last_used": "0",
+            "guid": "94dba7b4-7524-47b1-a53d-fa78a50f3b32",
+            "id": "9",
+            "name": "Lenovo Support",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://support.lenovo.com/",
+            "visit_count": 0
+         }, {
+            "date_added": "13430312035924898",
+            "date_last_used": "0",
+            "guid": "3514631d-4d79-4dce-9524-13df6bfcfcb0",
+            "id": "8",
+            "name": "Lenovo",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://www.lenovo.com/",
+            "visit_count": 0
+         }, {
+            "date_added": "13430312035924576",
+            "date_last_used": "0",
+            "guid": "88a106b8-6cc8-4b6b-83a7-fb1279a526ba",
+            "id": "7",
+            "name": "McAfee",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://www.mcafee.com/consumer/v/browserfav/lenovo.html",
+            "visit_count": 0
+         } ],
+         "date_added": "13430312035781495",
+         "date_last_used": "0",
+         "date_modified": "13430326266398791",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Favorites bar",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "other": {
+         "children": [  ],
+         "date_added": "13430312035781495",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Other favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [ {
+            "date_added": "13328026002753857",
+            "date_last_used": "0",
+            "guid": "6992ae3a-4677-4e3c-aca2-15082a885d87",
+            "id": "10",
+            "name": "fashion maaniaa",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://fashionmaaniaa.selloship.com/",
+            "visit_count": 0
+         }, {
+            "date_added": "13332925985014170",
+            "date_last_used": "0",
+            "guid": "e77586ad-c1f2-4abb-8275-31594071200a",
+            "id": "11",
+            "name": "Prayas JEE 2.0 2024 - Physics Wallah",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://www.pw.live/study/batches/open-pdf",
+            "visit_count": 0
+         } ],
+         "date_added": "13430312035781495",
+         "date_last_used": "0",
+         "date_modified": "13332925985014170",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Mobile favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "workspaces_v2": {
+         "children": [  ],
+         "date_added": "13430312035781495",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "75aa6670-344f-549d-b742-660f029506ab",
+         "id": "5",
+         "name": "Workspaces",
+         "source": "unknown",
+         "type": "folder"
+      }
+   },
+   "sync_metadata": "CkEKHgiIgQISCEmNP8yfAQAAKg4QABgBIAAoBTAAOABAABIAKhgxbmNsNzVLYjhYM3RiRmZvRWp6dnJ3PT1IA6AGDBKsAQgLEqcBChxyU0dBTDFBVjBERVFHZFNyNmNyVmwrczBwNUE9EiRlNzc1ODZhZC1jMWYyLTRhYmItODI3NS0zMTU5NDA3MTIwMGEYACAAKAAw1uS9i7MyOO7ovYuzMkDu6L2LszJKHDd4NENPbUY0MWwyaFhla1ZrQ2J5dFR0QlZyOD1aHiIcYTBvalkya0thOFdXRlYyVXRMS3ZzVUxsTUZBPWVFMRaiwj4CYAUSjgEIARKJAQoceXhKLzZmdmtlY3I3a3A1RVF6QjR0V0xwZGJFPRIkYzI3ZmUwOGUtOTMxMC01MWU5LTkzMmQtOTM0NDY0OTE2NDQ0GAAgACgAMMbq2LilMjjk8ti4pTJA5PLYuKUyShxhUkNXTGdoRjliNUlucUtJRHZ1Si9qdlFrRmM9WgBlAAAAAMI+AmAAEo4BCAMSiQEKHG5qZ0R1ODhlQ3J2WHA4NnBEN2ZIR2NxRnA4OD0SJDVkNDgxMmZkLWI2YzgtNTZkMy1hYjA0LTNhYWU3YjI1YWQ4NRgAIAAoADDM6ti4pTI4xfPYuKUyQMXz2LilMkoceXpOQjAxY241NEE3Y1JVMHVUKy9QZ21UdFVvPVoAZQAAAADCPgJgABKsAQgKEqcBChxaZzJIS2FxNWFzNWVYSGtibHBHT29SdEdrRDg9EiQ2OTkyYWUzYS00Njc3LTRlM2MtYWNhMi0xNTA4MmE4ODVkODcYACAAKAAw1+S9i7MyOJfpvYuzMkCX6b2LszJKHDJHbXZNTXQ3REh2aENBVXhmQ2xycllpNzdWdz1aHiIcQmc4U1RqQ3NkY1lkaXgwTHJPeDgrQkN4WGlzPWXtSFKRwj4CYAUSjgEIAhKJAQocWWNTVG9udkVTUHdxQ3M0TDJjclZodjY4TDk4PRIkMzE1YjM1NmMtOTkyOC01MTVlLWFjNjktYzczY2Y0NWQ4MjFiGAAgACgAMMfq2LilMjiG89i4pTJAhvPYuKUyShxvUFZraHdCUmJWNjVLQ1dSMitJT05IV29PdTg9WgBlAAAAAMI+AmAAEo4BCAUSiQEKHHdSQnJaTCs2UEE5YXZLZ2pOUDdKWERMY2Z2cz0SJDgwNzU3MTY1LTRlMjQtNTdkOC1hZWExLTY2MGM0Mzk1MDQyYhgAIAAoADC5xNHtlTM4kcfR7ZUzQJHH0e2VM0ocbm14NjVzUUR2eEk4VGdFZXYrQStudHRvU240PVoAZQAAAADCPgJgADAAOAA=",
+   "version": 1
+}

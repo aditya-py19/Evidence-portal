@@ -3,12 +3,14 @@ import { useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Share2, Printer, ShieldCheck, AlertTriangle,
   CheckCircle2, MapPin, User, Building, Eye, Download,
-  ExternalLink, RefreshCw
+  ExternalLink, RefreshCw, Plus, Upload, X
 } from 'lucide-react'
 import { PageHeader, GlassCard, StatusBadge, Modal, TabGroup } from '../components/ui'
 import { QRShareSection } from '../components/QRShareSection'
+import { CyberForensicsProcessingView } from '../components/CyberForensicsProcessingView'
 import { formatDate } from '../lib/utils'
 import { apiFetch, downloadAuthenticatedBlob } from '../lib/api'
+import { useAuth } from '../context/AppContext'
 
 interface CaseData {
   id: string
@@ -97,6 +99,9 @@ interface AuditLogItem {
 
 export default function CaseDetailsPage() {
   const { caseId } = useParams<{ caseId: string }>()
+  const { user } = useAuth()
+  const isOfficer = !!(user && ['police_officer', 'investigating_officer', 'forensic_expert'].includes(user.role))
+
   const [caseRecord, setCaseRecord] = useState<CaseData | null>(null)
   const [team, setTeam] = useState<TeamMember[]>([])
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([])
@@ -110,6 +115,16 @@ export default function CaseDetailsPage() {
 
   // QR Modal State
   const [showQRModal, setShowQRModal] = useState(false)
+
+  // Case-Scoped Upload Modal State
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadType, setUploadType] = useState('image')
+  const [uploadNote, setUploadNote] = useState('')
+  const [modalDragOver, setModalDragOver] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
+  const [processingFile, setProcessingFile] = useState<File | null>(null)
 
   // Blockchain Verification State
   const [verifyingOnChainId, setVerifyingOnChainId] = useState<string | null>(null)
@@ -337,6 +352,19 @@ export default function CaseDetailsPage() {
         </div>
       </GlassCard>
 
+      {/* SUCCESS NOTIFICATION STRIP */}
+      {uploadSuccess && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-xs animate-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{uploadSuccess}</span>
+          </div>
+          <button onClick={() => setUploadSuccess(null)} className="text-emerald-700 hover:text-emerald-950 text-xs font-bold px-2 py-0.5 rounded hover:bg-emerald-500/10">
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* NAVIGATION TABS */}
       <TabGroup tabs={tabsList} active={activeTab} onChange={setActiveTab} />
 
@@ -463,14 +491,27 @@ export default function CaseDetailsPage() {
                   Total Evidence = {evidenceList.length}
                 </span>
               </div>
-              <div className="w-full sm:w-64">
-                <input
-                  type="text"
-                  placeholder="Filter case evidence..."
-                  value={evidenceSearch}
-                  onChange={(e) => setEvidenceSearch(e.target.value)}
-                  className="cyber-input text-xs py-1.5"
-                />
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="w-full sm:w-64">
+                  <input
+                    type="text"
+                    placeholder="Filter case evidence..."
+                    value={evidenceSearch}
+                    onChange={(e) => setEvidenceSearch(e.target.value)}
+                    className="cyber-input text-xs py-1.5"
+                  />
+                </div>
+                {isOfficer && (
+                  <button
+                    onClick={() => {
+                      setUploadError(null)
+                      setShowUploadModal(true)
+                    }}
+                    className="cyber-btn-primary text-xs flex items-center gap-1.5 shrink-0 shadow-glow"
+                  >
+                    <Plus className="w-4 h-4" /> Upload Evidence
+                  </button>
+                )}
               </div>
             </div>
           </GlassCard>
@@ -935,6 +976,206 @@ export default function CaseDetailsPage() {
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* CASE-SCOPED EVIDENCE UPLOAD MODAL */}
+      {showUploadModal && isOfficer && (
+        <Modal
+          isOpen={showUploadModal}
+          onClose={() => {
+            if (!processingFile) {
+              setShowUploadModal(false)
+              setUploadFile(null)
+              setUploadNote('')
+              setUploadError(null)
+            }
+          }}
+          title="Upload Evidence"
+          size="lg"
+        >
+          {processingFile ? (
+            <CyberForensicsProcessingView
+              selectedFile={processingFile}
+              caseId={caseRecord.caseId}
+              evidenceType={uploadType}
+              evidenceNote={uploadNote}
+              onCancel={() => {
+                setProcessingFile(null)
+              }}
+              onComplete={async () => {
+                setProcessingFile(null)
+                setShowUploadModal(false)
+                setUploadFile(null)
+                setUploadNote('')
+                setUploadSuccess(`Evidence registered successfully under Case ${caseRecord.caseId}.`)
+                await fetchCaseDetails()
+              }}
+            />
+          ) : (
+            <div className="p-2 space-y-5">
+              {/* READ-ONLY CASE INFORMATION BANNER */}
+              <div className="p-4 rounded-xl bg-navy-900 text-white space-y-2 border border-navy-700 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold tracking-wider text-saffron-400 uppercase">
+                    Target Case Context (Read-Only)
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                    AUTOMATIC
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-navy-800 text-xs">
+                  <div>
+                    <span className="text-white/60 text-[10px] block font-semibold uppercase">Case ID</span>
+                    <span className="font-mono font-bold text-white text-sm">{caseRecord.caseId}</span>
+                  </div>
+                  <div>
+                    <span className="text-white/60 text-[10px] block font-semibold uppercase">FIR Number</span>
+                    <span className="font-mono font-bold text-white text-sm">{caseRecord.firNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-white/60 text-[10px] block font-semibold uppercase">Case Title</span>
+                    <span className="font-bold text-white truncate block">{caseRecord.title}</span>
+                  </div>
+                </div>
+              </div>
+
+              {uploadError && (
+                <div className="p-3 rounded-lg bg-red-50 text-red-700 border border-red-200 text-xs flex items-center gap-2 font-medium">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+
+              {/* EVIDENCE FILE INPUT */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-navy-900 block">
+                  Evidence File <span className="text-red-500">*</span>
+                </label>
+                {!uploadFile ? (
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setModalDragOver(true) }}
+                    onDragLeave={() => setModalDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setModalDragOver(false)
+                      const file = e.dataTransfer.files?.[0]
+                      if (file) {
+                        setUploadFile(file)
+                        setUploadError(null)
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition ${
+                      modalDragOver ? 'border-navy-600 bg-navy-50' : 'border-navy-200 hover:border-navy-400 bg-navy-50/30'
+                    }`}
+                  >
+                    <Upload className="w-8 h-8 text-navy-700 mx-auto mb-2" />
+                    <p className="text-xs text-navy-900 font-semibold">Drag & drop evidence file here, or click to browse</p>
+                    <p className="text-[11px] text-navy-600 mt-1">Images, Videos, Audio, Documents — Max 500MB</p>
+                    <input
+                      type="file"
+                      id="case-scoped-file-input"
+                      className="hidden"
+                      accept="image/*,video/*,audio/*,.png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setUploadFile(file)
+                          setUploadError(null)
+                        }
+                        e.target.value = ''
+                      }}
+                    />
+                    <label
+                      htmlFor="case-scoped-file-input"
+                      className="cyber-btn-secondary text-xs mt-3 inline-flex cursor-pointer"
+                    >
+                      Choose File
+                    </label>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-white border border-navy-200 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-6 h-6 text-navy-800 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-navy-900 truncate">{uploadFile.name}</p>
+                        <p className="text-[11px] text-navy-600 font-mono">{(uploadFile.size / (1024 * 1024)).toFixed(2)} MB • {uploadFile.type || 'Unknown MIME'}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setUploadFile(null)}
+                      className="text-navy-400 hover:text-red-500 p-1 transition"
+                      title="Remove file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* EVIDENCE TYPE / CATEGORY */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-navy-900 block">Evidence Type / Category</label>
+                <select
+                  value={uploadType}
+                  onChange={(e) => setUploadType(e.target.value)}
+                  className="cyber-input text-xs py-2 w-full font-medium"
+                >
+                  <option value="image">Image Evidence (Photo, Screenshot, Scene Capture)</option>
+                  <option value="video">Video Evidence (CCTV, Bodycam Recording)</option>
+                  <option value="audio">Audio Recording (Call Record, Intercept)</option>
+                  <option value="document">Document / PDF (Forensic Report, Bank Statement)</option>
+                </select>
+              </div>
+
+              {/* EVIDENCE NOTE */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-navy-900 block">
+                  Evidence Note <span className="text-navy-400 font-normal">(Optional Field Note)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={uploadNote}
+                  onChange={(e) => setUploadNote(e.target.value)}
+                  placeholder="Optional field note... e.g., Mobile device recovered from the passenger seat during scene examination."
+                  className="cyber-input text-xs py-2 w-full resize-none font-sans"
+                />
+              </div>
+
+              {/* ACTIONS */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-navy-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUploadModal(false)
+                    setUploadFile(null)
+                    setUploadNote('')
+                    setUploadError(null)
+                  }}
+                  className="cyber-btn-secondary text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!uploadFile}
+                  onClick={() => {
+                    if (!uploadFile) {
+                      setUploadError('Please select a file to register evidence.')
+                      return
+                    }
+                    setUploadError(null)
+                    setProcessingFile(uploadFile)
+                  }}
+                  className={`cyber-btn-primary text-xs flex items-center gap-1.5 ${
+                    !uploadFile ? 'opacity-50 cursor-not-allowed' : 'shadow-glow'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" /> Register Evidence
+                </button>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
     </div>
