@@ -6,7 +6,7 @@ import jwt, { type JwtPayload } from 'jsonwebtoken'
 import { PrismaClient, UserRole } from '@prisma/client'
 import multer from 'multer'
 import crypto from 'crypto'
-import { ACTIVITY, logActivity } from './activityLog.js'
+import { ACTIVITY, logActivity, getClientIp } from './activityLog.js'
 import { recordEvidenceOnChain, verifyEvidenceOnChain } from './blockchain/contractService.js'
 
 
