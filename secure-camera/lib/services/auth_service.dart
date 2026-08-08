@@ -59,19 +59,18 @@ class AuthService {
       } else if (response.statusCode == 403) {
         final msg = data?['message'] as String?;
         throw Exception(msg ?? 'Your account is not authorized to use Secure Cam.');
-      } else if (response.statusCode >= 500) {
-        throw Exception('Server is temporarily unavailable. Please try again.');
       } else {
         final msg = data?['message'] as String?;
-        throw Exception(msg ?? 'Authentication failed (HTTP ${response.statusCode}).');
+        final serverMsg = (msg != null && msg.isNotEmpty) ? msg : 'Server response HTTP ${response.statusCode}.';
+        throw Exception('Authentication error (HTTP ${response.statusCode}): $serverMsg');
       }
     } on TimeoutException {
-      throw Exception('Connection timeout. Unable to connect to Evidence Portal.');
-    } on http.ClientException {
-      throw Exception('Unable to connect to Evidence Portal. Please check network.');
+      throw Exception('Connection timeout (15s). Unable to reach Evidence Portal at ${ApiConfig.baseUrl}.');
+    } on http.ClientException catch (e) {
+      throw Exception('Network connection error (${e.message}). Unable to reach ${ApiConfig.baseUrl}.');
     } catch (e) {
       if (e is Exception) rethrow;
-      throw Exception('An unexpected authentication error occurred.');
+      throw Exception('An unexpected authentication error occurred: $e');
     }
   }
 

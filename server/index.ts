@@ -195,7 +195,7 @@ async function resetFailedAttempts(userId: string) {
   })
 }
 
-async function registerOrUpdateDevice(userId: string, req: Request) {
+async function registerOrUpdateDevice(user: { id: string; username: string; role: UserRole }, req: Request) {
   const rawDeviceId = req.body.deviceId
   if (!rawDeviceId || typeof rawDeviceId !== 'string') return null
 
@@ -204,21 +204,28 @@ async function registerOrUpdateDevice(userId: string, req: Request) {
   const os = typeof req.body.os === 'string' ? req.body.os.trim() : 'Android'
   const appVersion = typeof req.body.appVersion === 'string' ? req.body.appVersion.trim() : '1.0.0'
 
-  const device = await prisma.device.upsert({
-    where: { userId_deviceId: { userId, deviceId } },
-    update: { deviceName, os, appVersion, lastLoginAt: new Date(), isRevoked: false },
-    create: { userId, deviceId, deviceName, os, appVersion, lastLoginAt: new Date() },
-  })
+  try {
+    const device = await prisma.device.upsert({
+      where: { userId_deviceId: { userId: user.id, deviceId } },
+      update: { deviceName, os, appVersion, lastLoginAt: new Date(), isRevoked: false },
+      create: { userId: user.id, deviceId, deviceName, os, appVersion, lastLoginAt: new Date() },
+    })
 
-  await logActivity(prisma, req, {
-    activity: ACTIVITY.DEVICE_REGISTERED,
-    username: userId,
-    role: UserRole.police_officer,
-    userId,
-    details: `Device registered: ${deviceName} (${os})`,
-  })
+    try {
+      await logActivity(prisma, req, {
+        activity: ACTIVITY.DEVICE_REGISTERED,
+        username: user.username,
+        role: user.role,
+        userId: user.id,
+        details: `Device registered: ${deviceName} (${os})`,
+      })
+    } catch (_) {}
 
-  return device
+    return device
+  } catch (err) {
+    console.warn('[DEVICE REGISTRATION WARNING]', err)
+    return null
+  }
 }
 
 async function createSessionRecord(userId: string, deviceId: string | null, req: Request) {
@@ -292,23 +299,36 @@ async function loginForPortal(req: Request, res: Response, next: NextFunction, p
     await resetFailedAttempts(user.id)
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
 
-    const device = await registerOrUpdateDevice(user.id, req)
-    const session = await createSessionRecord(user.id, device?.id ?? null, req)
-    const { rawToken: refreshToken } = await createRefreshTokenPair(user.id, device?.id ?? null, session.id, rememberMe)
+    let device: any = null
+    let session: any = null
+    let refreshToken: string | null = null
 
-    if (portal === 'officer') {
-      await logActivity(prisma, req, {
-        activity: ACTIVITY.OFFICER_LOGIN,
-        username: user.username,
-        role: user.role,
-        userId: user.id,
-        details: 'Officer Portal login',
-      })
+    try {
+      device = await registerOrUpdateDevice(user, req)
+      session = await createSessionRecord(user.id, device?.id ?? null, req)
+      const tokenPair = await createRefreshTokenPair(user.id, device?.id ?? null, session?.id ?? null, rememberMe)
+      refreshToken = tokenPair.rawToken
+    } catch (sessionErr) {
+      console.warn('[LOGIN SESSION WARNING] Non-critical session token issue:', sessionErr)
+    }
+
+    try {
+      if (portal === 'officer') {
+        await logActivity(prisma, req, {
+          activity: ACTIVITY.OFFICER_LOGIN,
+          username: user.username,
+          role: user.role,
+          userId: user.id,
+          details: 'Officer Portal login',
+        })
+      }
+    } catch (auditErr) {
+      console.warn('[LOGIN AUDIT WARNING]', auditErr)
     }
 
     const accessExpiry = rememberMe ? '24h' : '2h'
     const token = jwt.sign({ role: user.role }, jwtSecret, { subject: user.id, expiresIn: accessExpiry })
-    return res.json({ token, refreshToken, user: publicUser(user), sessionId: session.id, deviceId: device?.id })
+    return res.json({ token, refreshToken, user: publicUser(user), sessionId: session?.id, deviceId: device?.id })
   } catch (error) { next(error) }
 }
 
