@@ -6,7 +6,7 @@ import jwt, { type JwtPayload } from 'jsonwebtoken'
 import { PrismaClient, UserRole } from '@prisma/client'
 import multer from 'multer'
 import crypto from 'crypto'
-import { ACTIVITY, logActivity, getClientIp } from './activityLog.js'
+import { ACTIVITY, logActivity } from './activityLog.js'
 import { recordEvidenceOnChain, verifyEvidenceOnChain } from './blockchain/contractService.js'
 
 
@@ -102,6 +102,20 @@ function administratorsOnly(req: AuthRequest, res: Response, next: NextFunction)
 }
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+
+function getClientIp(req: Request): string {
+  try {
+    const forwarded = req.headers?.['x-forwarded-for']
+    if (forwarded) {
+      const firstIp = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]
+      if (firstIp && firstIp.trim()) return firstIp.trim()
+    }
+    const ip = req.socket?.remoteAddress ?? req.ip ?? '127.0.0.1'
+    return ip === '::1' ? '127.0.0.1' : ip
+  } catch (_) {
+    return '127.0.0.1'
+  }
+}
 
 // In-memory Auth Rate Limiter
 const authRateLimitMap = new Map<string, { count: number; resetAt: number }>()
