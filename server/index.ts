@@ -3324,8 +3324,9 @@ app.patch('/api/users/:id/status', authenticate, administratorsOnly, async (req,
 })
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(error)
-  res.status(500).json({ message: 'Unexpected server error.' })
+  console.error('[UNHANDLED SERVER ERROR]', error)
+  const msg = (error as any)?.message || String(error)
+  res.status(500).json({ message: `Server Exception: ${msg}` })
 })
 
 if (process.env.NODE_ENV !== 'test') {
