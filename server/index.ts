@@ -103,43 +103,35 @@ function administratorsOnly(req: AuthRequest, res: Response, next: NextFunction)
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
 
-function getClientIp(req: Request): string {
-  try {
-    const forwarded = req.headers?.['x-forwarded-for']
-    if (forwarded) {
-      const firstIp = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]
-      if (firstIp && firstIp.trim()) return firstIp.trim()
-    }
-    const ip = req.socket?.remoteAddress ?? req.ip ?? '127.0.0.1'
-    return ip === '::1' ? '127.0.0.1' : ip
-  } catch (_) {
-    return '127.0.0.1'
-  }
-}
-
 // In-memory Auth Rate Limiter
 const authRateLimitMap = new Map<string, { count: number; resetAt: number }>()
 
 function rateLimitAuth(maxRequests: number = 5, windowMs: number = 15 * 60 * 1000) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const ip = getClientIp(req)
-    const key = `${req.path}:${ip}`
-    const now = Date.now()
-    const record = authRateLimitMap.get(key)
+    try {
+      const forwarded = req.headers?.['x-forwarded-for']
+      const ip = (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : (Array.isArray(forwarded) ? forwarded[0] : null)) ?? req.socket?.remoteAddress ?? '127.0.0.1'
+      const key = `${req.path}:${ip}`
+      const now = Date.now()
+      const record = authRateLimitMap.get(key)
 
-    if (!record || now > record.resetAt) {
-      authRateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
-      return next()
+      if (!record || now > record.resetAt) {
+        authRateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
+        return next()
+      }
+
+      if (record.count >= maxRequests) {
+        return res.status(429).json({
+          message: 'Too many authentication attempts. Please try again in 15 minutes.'
+        })
+      }
+
+      record.count += 1
+      next()
+    } catch (e) {
+      console.warn('[RATE LIMITER WARNING]', e)
+      next()
     }
-
-    if (record.count >= maxRequests) {
-      return res.status(429).json({
-        message: 'Too many authentication attempts. Please try again in 15 minutes.'
-      })
-    }
-
-    record.count += 1
-    next()
   }
 }
 
@@ -243,7 +235,8 @@ async function registerOrUpdateDevice(user: { id: string; username: string; role
 }
 
 async function createSessionRecord(userId: string, deviceId: string | null, req: Request) {
-  const ipAddress = getClientIp(req)
+  const forwarded = req.headers?.['x-forwarded-for']
+  const ipAddress = (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : (Array.isArray(forwarded) ? forwarded[0] : null)) ?? req.socket?.remoteAddress ?? '127.0.0.1'
   const userAgent = (req.headers['user-agent'] as string | undefined) ?? 'Secure Cam Client'
   return await prisma.session.create({
     data: {
