@@ -3,7 +3,10 @@ import '../models/case_model.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/locker_storage_service.dart';
+import '../widgets/upload_progress_overlay.dart';
 import 'camera_screen.dart';
+import 'local_evidence_locker_screen.dart';
 import 'login_screen.dart';
 
 class CaseSelectionScreen extends StatefulWidget {
@@ -24,11 +27,32 @@ class _CaseSelectionScreenState extends State<CaseSelectionScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   bool _showCaseList = false;
+  int _pendingLockerCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadCases();
+    _loadLockerCount();
+  }
+
+  Future<void> _loadLockerCount() async {
+    final count = await LockerStorageService().getPendingCount();
+    if (mounted) {
+      setState(() {
+        _pendingLockerCount = count;
+      });
+    }
+  }
+
+  void _openLocker() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const LocalEvidenceLockerScreen(),
+      ),
+    );
+    _loadLockerCount();
   }
 
   Future<void> _loadCases() async {
@@ -144,306 +168,366 @@ class _CaseSelectionScreenState extends State<CaseSelectionScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Main Field Action Cards Section
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Main Field Action Cards Section
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.flash_on_rounded,
-                            color: Color(0xFF2563EB), size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'FIELD ACTION SELECTION',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                            color: Color(0xFF0F172A),
+                        const Row(
+                          children: [
+                            Icon(Icons.flash_on_rounded,
+                                color: Color(0xFF2563EB), size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'FIELD ACTION SELECTION',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Choose rapid field evidence capture or select an existing case',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ACTION 1: CAPTURE EVIDENCE NOW (Rapid Unassigned)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton.icon(
+                            onPressed: _startRapidUnassignedCapture,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2563EB),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.camera_alt, size: 20),
+                            label: const Text(
+                              'CAPTURE EVIDENCE NOW',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          '⚡ Rapid capture without case selection. Registers as Unassigned.',
+                          style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ACTION 2: SELECT EXISTING CASE
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _showCaseList = !_showCaseList;
+                              });
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: Icon(
+                              _showCaseList ? Icons.folder_open : Icons.folder_shared_outlined,
+                              color: const Color(0xFF0F172A),
+                              size: 18,
+                            ),
+                            label: Text(
+                              _showCaseList ? 'HIDE CASE LIST' : 'SELECT EXISTING CASE',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // ACTION 3: LOCAL EVIDENCE LOCKER
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: _openLocker,
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF0284C7)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.lock_clock_outlined,
+                              color: Color(0xFF0284C7),
+                              size: 18,
+                            ),
+                            label: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  'LOCAL EVIDENCE LOCKER',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
+                                if (_pendingLockerCount > 0) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0284C7),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '$_pendingLockerCount PENDING',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                  ),
+
+                  if (_showCaseList) ...[
+                    const SizedBox(height: 20),
                     const Text(
-                      'Choose rapid field evidence capture or select an existing case',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      'Authorized Cases',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    Expanded(
+                      child: _isLoading
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF0F172A),
+                              ),
+                            )
+                          : _errorMessage != null
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.error_outline,
+                                          size: 36, color: Color(0xFFDC2626)),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _errorMessage!,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                            fontSize: 12, color: Color(0xFF991B1B)),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      ElevatedButton(
+                                        onPressed: _loadCases,
+                                        child: const Text('Retry Fetching Cases'),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : _cases.isEmpty
+                                  ? const Center(
+                                      child: Text(
+                                        'No active cases assigned to your officer account.',
+                                        style: TextStyle(
+                                            fontSize: 12, color: Color(0xFF64748B)),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      itemCount: _cases.length,
+                                      separatorBuilder: (context, index) =>
+                                          const SizedBox(height: 10),
+                                      itemBuilder: (context, index) {
+                                        final c = _cases[index];
+                                        final isSelected =
+                                            _selectedCase?.id == c.id;
+
+                                        return GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedCase = c;
+                                            });
+                                          },
+                                          child: AnimatedContainer(
+                                            duration:
+                                                const Duration(milliseconds: 150),
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? const Color(0xFFF0F9FF)
+                                                  : Colors.white,
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? const Color(0xFF0284C7)
+                                                    : const Color(0xFFE2E8F0),
+                                                width: isSelected ? 2.0 : 1.0,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  isSelected
+                                                      ? Icons.radio_button_checked
+                                                      : Icons.radio_button_unchecked,
+                                                  color: isSelected
+                                                      ? const Color(0xFF0284C7)
+                                                      : const Color(0xFF94A3B8),
+                                                  size: 20,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment.start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Text(
+                                                            c.caseId,
+                                                            style: const TextStyle(
+                                                              fontFamily: 'monospace',
+                                                              fontWeight:
+                                                                  FontWeight.bold,
+                                                              fontSize: 13,
+                                                              color: Color(0xFF0F172A),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 8),
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                                    horizontal: 6,
+                                                                    vertical: 2),
+                                                            decoration: BoxDecoration(
+                                                              color: const Color(
+                                                                  0xFFF1F5F9),
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(4),
+                                                            ),
+                                                            child: Text(
+                                                              c.firNumber,
+                                                              style: const TextStyle(
+                                                                  fontSize: 10,
+                                                                  color: Color(
+                                                                      0xFF475569)),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        c.title,
+                                                        style: const TextStyle(
+                                                          fontSize: 13,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Color(0xFF1E293B),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        '${c.crimeType} • ${c.evidenceCount} Items Registered',
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                          color: Color(0xFF64748B),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
                     ),
                     const SizedBox(height: 16),
 
-                    // ACTION 1: CAPTURE EVIDENCE NOW (Rapid Unassigned)
                     SizedBox(
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton.icon(
-                        onPressed: _startRapidUnassignedCapture,
+                        onPressed: _selectedCase == null ? null : _startCaseCapture,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
+                          backgroundColor: const Color(0xFF0F172A),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        icon: const Icon(Icons.camera_alt, size: 20),
+                        icon: const Icon(Icons.camera_alt_outlined, size: 20),
                         label: const Text(
-                          'CAPTURE EVIDENCE NOW',
+                          'START CASE CAPTURE',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      '⚡ Rapid capture without case selection. Registers as Unassigned.',
-                      style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ACTION 2: SELECT EXISTING CASE
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _showCaseList = !_showCaseList;
-                          });
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        icon: Icon(
-                          _showCaseList ? Icons.folder_open : Icons.folder_shared_outlined,
-                          color: const Color(0xFF0F172A),
-                          size: 18,
-                        ),
-                        label: Text(
-                          _showCaseList ? 'HIDE CASE LIST' : 'SELECT EXISTING CASE',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
+                            letterSpacing: 1.0,
                           ),
                         ),
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
+            ),
 
-              if (_showCaseList) ...[
-                const SizedBox(height: 20),
-                const Text(
-                  'Authorized Cases',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                Expanded(
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF0F172A),
-                          ),
-                        )
-                      : _errorMessage != null
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.error_outline,
-                                      size: 36, color: Color(0xFFDC2626)),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _errorMessage!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                        fontSize: 12, color: Color(0xFF991B1B)),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: _loadCases,
-                                    child: const Text('Retry Fetching Cases'),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : _cases.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'No active cases assigned to your officer account.',
-                                    style: TextStyle(
-                                        fontSize: 12, color: Color(0xFF64748B)),
-                                  ),
-                                )
-                              : ListView.separated(
-                                  itemCount: _cases.length,
-                                  separatorBuilder: (context, index) =>
-                                      const SizedBox(height: 10),
-                                  itemBuilder: (context, index) {
-                                    final c = _cases[index];
-                                    final isSelected =
-                                        _selectedCase?.id == c.id;
-
-                                    return GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          _selectedCase = c;
-                                        });
-                                      },
-                                      child: AnimatedContainer(
-                                        duration:
-                                            const Duration(milliseconds: 150),
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? const Color(0xFFF0F9FF)
-                                              : Colors.white,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: isSelected
-                                                ? const Color(0xFF0284C7)
-                                                : const Color(0xFFE2E8F0),
-                                            width: isSelected ? 2.0 : 1.0,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              isSelected
-                                                  ? Icons.radio_button_checked
-                                                  : Icons.radio_button_unchecked,
-                                              color: isSelected
-                                                  ? const Color(0xFF0284C7)
-                                                  : const Color(0xFF94A3B8),
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(
-                                                    children: [
-                                                      Text(
-                                                        c.caseId,
-                                                        style: const TextStyle(
-                                                          fontFamily: 'monospace',
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 13,
-                                                          color: Color(0xFF0F172A),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                                horizontal: 6,
-                                                                vertical: 2),
-                                                        decoration: BoxDecoration(
-                                                          color: const Color(
-                                                              0xFFF1F5F9),
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(4),
-                                                        ),
-                                                        child: Text(
-                                                          c.firNumber,
-                                                          style: const TextStyle(
-                                                              fontSize: 10,
-                                                              color: Color(
-                                                                  0xFF475569)),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    c.title,
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: Color(0xFF1E293B),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    '${c.crimeType} • ${c.evidenceCount} Items Registered',
-                                                    style: const TextStyle(
-                                                      fontSize: 11,
-                                                      color: Color(0xFF64748B),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                ),
-                const SizedBox(height: 16),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: _selectedCase == null ? null : _startCaseCapture,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F172A),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.camera_alt_outlined, size: 20),
-                    label: const Text(
-                      'START CASE CAPTURE',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+            // Background Upload Progress Overlay
+            const UploadProgressOverlay(),
+          ],
         ),
       ),
     );

@@ -28,3 +28,13 @@ Thumbs.db
 .env.*.local
 prisma/*.db
 prisma/*.db-journal
+
+# Flutter / Android build artifacts
+secure-camera/build/
+secure-camera/.dart_tool/
+secure-camera/android/.gradle/
+secure-camera/android/app/build/
+.gradle/
+**/.gradle/
+
+

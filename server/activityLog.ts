@@ -42,6 +42,14 @@ export const ACTIVITY = {
   INTEGRITY_MISMATCH: 'Integrity Mismatch Detected',
   UNASSIGNED_EVIDENCE_REGISTERED: 'Unassigned Evidence Registered',
   EVIDENCE_ASSIGNED_TO_CASE: 'Evidence Assigned to Case',
+  OTP_GENERATED: 'OTP Generated',
+  OTP_VERIFIED: 'OTP Verified',
+  REFRESH_TOKEN: 'Refresh Token Issued',
+  BIOMETRIC_LOGIN: 'Biometric Re-Authentication',
+  DEVICE_REGISTERED: 'Trusted Device Registered',
+  DEVICE_REMOVED: 'Trusted Device Revoked',
+  ACCOUNT_LOCKED: 'Account Locked (Brute Force Protection)',
+  PASSWORD_RESET: 'Password Reset Completed',
 } as const
 
 export function getClientIp(req: Request): string {

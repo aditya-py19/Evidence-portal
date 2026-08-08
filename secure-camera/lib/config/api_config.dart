@@ -8,6 +8,10 @@ class ApiConfig {
   static String get baseUrl => _useLocalDev ? devBaseUrl : prodBaseUrl;
 
   static String get loginUrl => '$baseUrl/api/auth/login';
+  static String get requestOtpUrl => '$baseUrl/api/auth/request-otp';
+  static String get verifyOtpUrl => '$baseUrl/api/auth/verify-otp';
+  static String get refreshTokenUrl => '$baseUrl/api/auth/refresh-token';
   static String get casesUrl => '$baseUrl/api/cases';
   static String get secureCaptureUrl => '$baseUrl/api/evidence/secure-capture';
 }
+

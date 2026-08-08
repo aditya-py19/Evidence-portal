@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/biometric_service.dart';
 import 'case_selection_screen.dart';
+
+enum AuthMode { password, otp }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -10,27 +13,51 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _usernameController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  final _otpController = TextEditingController();
 
+  final _authService = AuthService();
+  final _biometricService = BiometricService();
+
+  AuthMode _authMode = AuthMode.password;
+  bool _rememberMe = true; // Feature 2: Keep me signed in enabled by default
+  bool _otpSent = false;
   bool _isLoading = false;
+  bool _isBiometricSupported = false;
   String? _errorMessage;
+  String? _infoMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricSupport();
+  }
+
+  Future<void> _checkBiometricSupport() async {
+    final available = await _biometricService.isBiometricAvailable();
+    if (mounted) {
+      setState(() {
+        _isBiometricSupported = available;
+      });
+    }
+  }
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    final username = _usernameController.text.trim();
+  Future<void> _handlePasswordLogin() async {
+    final identifier = _identifierController.text.trim();
     final password = _passwordController.text;
 
-    if (username.isEmpty || password.isEmpty) {
+    if (identifier.isEmpty || password.isEmpty) {
       setState(() {
-        _errorMessage = 'Please enter both Force ID/username and password.';
+        _errorMessage = 'Please enter Force ID / Mobile Number and Password.';
       });
       return;
     }
@@ -38,10 +65,15 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _infoMessage = null;
     });
 
     try {
-      final user = await _authService.login(username, password);
+      final user = await _authService.login(
+        identifier,
+        password,
+        rememberMe: _rememberMe,
+      );
       if (!mounted) return;
 
       Navigator.pushReplacement(
@@ -62,6 +94,112 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _handleRequestOtp() async {
+    final mobile = _identifierController.text.trim();
+    if (mobile.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter registered mobile number for OTP dispatch.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _infoMessage = null;
+    });
+
+    try {
+      await _authService.requestOtp(mobile);
+      if (mounted) {
+        setState(() {
+          _otpSent = true;
+          _infoMessage = '✓ OTP verification code sent to $mobile';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleVerifyOtp() async {
+    final mobile = _identifierController.text.trim();
+    final otp = _otpController.text.trim();
+
+    if (mobile.isEmpty || otp.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter both Mobile Number and 6-digit OTP code.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _infoMessage = null;
+    });
+
+    try {
+      final user = await _authService.verifyOtp(
+        mobile,
+        otp,
+        rememberMe: _rememberMe,
+      );
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CaseSelectionScreen(user: user),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleBiometricAuth() async {
+    final authenticated = await _biometricService.authenticateOfficer();
+    if (authenticated) {
+      final savedUser = await _authService.getSavedUser();
+      if (savedUser != null && mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CaseSelectionScreen(user: savedUser),
+          ),
+        );
+        return;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _errorMessage = 'Biometric authentication failed. Please enter credentials.';
+      });
     }
   }
 
@@ -132,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
 
                 // Login Form Card
                 Container(
@@ -162,8 +300,100 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Use your existing Evidence Portal account credentials',
+                        'Authorized law enforcement portal access',
                         style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Feature 5: Login Option Selector (Password vs OTP)
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _authMode = AuthMode.password;
+                                    _errorMessage = null;
+                                    _infoMessage = null;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: _authMode == AuthMode.password
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: _authMode == AuthMode.password
+                                        ? [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.05),
+                                              blurRadius: 4,
+                                            ),
+                                          ]
+                                        : [],
+                                  ),
+                                  child: Text(
+                                    'Password Login',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: _authMode == AuthMode.password
+                                          ? const Color(0xFF0F172A)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _authMode = AuthMode.otp;
+                                    _errorMessage = null;
+                                    _infoMessage = null;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: _authMode == AuthMode.otp
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: _authMode == AuthMode.otp
+                                        ? [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.05),
+                                              blurRadius: 4,
+                                            ),
+                                          ]
+                                        : [],
+                                  ),
+                                  child: Text(
+                                    'Login with OTP',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: _authMode == AuthMode.otp
+                                          ? const Color(0xFF0F172A)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 20),
 
@@ -193,35 +423,120 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Username Input
+                      if (_infoMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF86EFAC)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle_outline,
+                                  color: Color(0xFF16A34A), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _infoMessage!,
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Color(0xFF166534)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Feature 4: Mobile Number / Force ID Flexible Identifier
                       TextField(
-                        controller: _usernameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Force ID / Username / Email',
-                          prefixIcon: Icon(Icons.badge_outlined),
-                          border: OutlineInputBorder(),
+                        controller: _identifierController,
+                        keyboardType: _authMode == AuthMode.otp
+                            ? TextInputType.phone
+                            : TextInputType.text,
+                        decoration: InputDecoration(
+                          labelText: _authMode == AuthMode.otp
+                              ? 'Registered Mobile Number'
+                              : 'Force ID / Mobile Number / Username',
+                          prefixIcon: Icon(_authMode == AuthMode.otp
+                              ? Icons.phone_android_outlined
+                              : Icons.badge_outlined),
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Password Input
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(),
+                      if (_authMode == AuthMode.password) ...[
+                        // Password Input
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                            prefixIcon: Icon(Icons.lock_outline),
+                            border: OutlineInputBorder(),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+                      ] else ...[
+                        if (_otpSent) ...[
+                          TextField(
+                            controller: _otpController,
+                            keyboardType: TextInputType.number,
+                            maxLength: 6,
+                            decoration: const InputDecoration(
+                              labelText: 'Enter 6-Digit OTP Code',
+                              prefixIcon: Icon(Icons.pin_outlined),
+                              border: OutlineInputBorder(),
+                              counterText: '',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      ],
 
-                      // Login Button
+                      // Feature 2: Remember Me Checkbox
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: _rememberMe,
+                              activeColor: const Color(0xFF0F172A),
+                              onChanged: (val) {
+                                setState(() {
+                                  _rememberMe = val ?? true;
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Keep me signed in',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Feature 10: Authenticate Button
                       SizedBox(
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleLogin,
+                          onPressed: _isLoading
+                              ? null
+                              : (_authMode == AuthMode.password
+                                  ? _handlePasswordLogin
+                                  : (_otpSent ? _handleVerifyOtp : _handleRequestOtp)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0F172A),
                             foregroundColor: Colors.white,
@@ -238,9 +553,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text(
-                                  'AUTHENTICATE OFFICER',
-                                  style: TextStyle(
+                              : Text(
+                                  _authMode == AuthMode.password
+                                      ? 'AUTHENTICATE OFFICER'
+                                      : (_otpSent ? 'VERIFY OTP & LOGIN' : 'SEND OTP CODE'),
+                                  style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 1.0,
@@ -248,6 +565,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                         ),
                       ),
+
+                      // Feature 3: Biometric Quick Login Shortcut
+                      if (_isBiometricSupported) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _handleBiometricAuth,
+                          icon: const Icon(Icons.fingerprint, size: 20),
+                          label: const Text('UNLOCK WITH BIOMETRICS / PIN'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0F172A),
+                            minimumSize: const Size.fromHeight(44),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -266,3 +601,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

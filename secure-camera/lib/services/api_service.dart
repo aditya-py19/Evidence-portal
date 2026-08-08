@@ -7,6 +7,35 @@ import '../models/case_model.dart';
 import '../models/evidence_capture_model.dart';
 import 'secure_storage_service.dart';
 
+class MultipartRequestWithProgress extends http.MultipartRequest {
+  final void Function(int bytesSent, int totalBytes)? onProgress;
+
+  MultipartRequestWithProgress(
+    String method,
+    Uri url, {
+    this.onProgress,
+  }) : super(method, url);
+
+  @override
+  http.ByteStream finalize() {
+    final byteStream = super.finalize();
+    if (onProgress == null) return byteStream;
+
+    final total = contentLength;
+    int bytesSent = 0;
+
+    final transformer = StreamTransformer<List<int>, List<int>>.fromHandlers(
+      handleData: (data, sink) {
+        bytesSent += data.length;
+        onProgress!(bytesSent, total);
+        sink.add(data);
+      },
+    );
+
+    return http.ByteStream(byteStream.transform(transformer));
+  }
+}
+
 class ApiService {
   final SecureStorageService _storage = SecureStorageService();
 
@@ -54,6 +83,7 @@ class ApiService {
   Future<Map<String, dynamic>> submitSecureCapture({
     String? caseId,
     required EvidenceCaptureModel capture,
+    void Function(int bytesSent, int totalBytes)? onProgress,
   }) async {
     final jwt = await _storage.getJwt();
     if (jwt == null) throw Exception('Authentication session expired.');
@@ -64,9 +94,10 @@ class ApiService {
     }
 
     try {
-      final request = http.MultipartRequest(
+      final request = MultipartRequestWithProgress(
         'POST',
         Uri.parse(ApiConfig.secureCaptureUrl),
+        onProgress: onProgress,
       );
 
       request.headers['Authorization'] = 'Bearer $jwt';
@@ -78,6 +109,15 @@ class ApiService {
       request.fields['captureMode'] = capture.captureMode;
       request.fields['capturedAt'] = capture.capturedAt.toIso8601String();
       request.fields['locationStatus'] = capture.locationStatus;
+
+      // Metadata fields for Evidence Passport
+      request.fields['metadata'] = jsonEncode(capture.metadata.toJson());
+      request.fields['deviceModel'] = capture.metadata.deviceModel;
+      request.fields['androidVersion'] = capture.metadata.androidVersion;
+      request.fields['appVersion'] = capture.metadata.appVersion;
+      request.fields['cameraResolution'] = capture.metadata.cameraResolution;
+      request.fields['flashStatus'] = capture.metadata.flashStatus;
+      request.fields['timezone'] = capture.metadata.timezone;
 
       if (capture.evidenceNote != null && capture.evidenceNote!.trim().isNotEmpty) {
         request.fields['note'] = capture.evidenceNote!.trim();
@@ -101,7 +141,7 @@ class ApiService {
         ),
       );
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 45));
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 401) {

@@ -19,6 +19,7 @@ model User {
   id                 String        @id @default(cuid())
   username           String        @unique
   email              String        @unique
+  mobileNumber       String?       @unique
   name               String
   role               UserRole
   department         String
@@ -26,6 +27,8 @@ model User {
   passwordHash       String
   isActive           Boolean       @default(true)
   mustChangePassword Boolean       @default(false)
+  failedLoginAttempts Int          @default(0)
+  lockedUntil        DateTime?
   lastLoginAt        DateTime?
   createdById        String?
   createdBy          User?         @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -37,6 +40,10 @@ model User {
   judicialNotes         JudicialNote[]          @relation("JudgeJudicialNotes")
   judgeClarifications   EvidenceClarification[] @relation("JudgeClarifications")
   officerClarificationResponses EvidenceClarification[] @relation("OfficerClarificationResponses")
+  sessions              Session[]
+  refreshTokens         RefreshToken[]
+  trustedDevices        Device[]
+  otps                  OtpRecord[]
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
 }
@@ -54,6 +61,67 @@ model ActivityLog {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 }
+
+model OtpRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  identifier  String
+  otpHash     String
+  expiresAt   DateTime
+  purpose     String   @default("LOGIN") // LOGIN, PASSWORD_RESET
+  isUsed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Device {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId      String         // Client hardware device UUID / fingerprint
+  deviceName    String         @default("Unknown Device")
+  os            String         @default("Unknown OS")
+  appVersion    String         @default("1.0.0")
+  isRevoked     Boolean        @default(false)
+  lastLoginAt   DateTime       @default(now())
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([userId, deviceId])
+}
+
+model Session {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId      String?
+  device        Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  ipAddress     String         @default("127.0.0.1")
+  userAgent     String?
+  loginTime     DateTime       @default(now())
+  lastActivity  DateTime       @default(now())
+  isRevoked     Boolean        @default(false)
+  refreshTokens RefreshToken[]
+  createdAt     DateTime       @default(now())
+}
+
+model RefreshToken {
+  id              String   @id @default(cuid())
+  tokenHash       String   @unique
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId        String?
+  device          Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  sessionId       String?
+  session         Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  expiresAt       DateTime
+  isRevoked       Boolean  @default(false)
+  replacedByToken String?
+  createdAt       DateTime @default(now())
+}
+
 
 model Evidence {
   id                String   @id @default(cuid())

@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
 import '../models/evidence_capture_model.dart';
+import 'encryption_service.dart';
 import 'hash_service.dart';
 import 'location_service.dart';
+import 'metadata_service.dart';
 
 class CameraService {
   CameraController? _controller;
@@ -13,9 +16,27 @@ class CameraService {
   DateTime? _videoStartTime;
   final LocationService _locationService = LocationService();
 
+  FlashMode _currentFlashMode = FlashMode.off;
+  double _minZoomLevel = 1.0;
+  double _maxZoomLevel = 1.0;
+  double _currentZoomLevel = 1.0;
+
+  double _minExposureOffset = 0.0;
+  double _maxExposureOffset = 0.0;
+  double _currentExposureOffset = 0.0;
+
   bool get isInitialized => _controller != null && _controller!.value.isInitialized;
   bool get isRecordingVideo => _isRecordingVideo;
   CameraController? get controller => _controller;
+
+  FlashMode get currentFlashMode => _currentFlashMode;
+  double get minZoomLevel => _minZoomLevel;
+  double get maxZoomLevel => _maxZoomLevel;
+  double get currentZoomLevel => _currentZoomLevel;
+
+  double get minExposureOffset => _minExposureOffset;
+  double get maxExposureOffset => _maxExposureOffset;
+  double get currentExposureOffset => _currentExposureOffset;
 
   Future<void> initialize() async {
     _cameras = await availableCameras();
@@ -32,7 +53,25 @@ class CameraService {
       ResolutionPreset.high,
       enableAudio: true,
     );
+
     await _controller!.initialize();
+
+    try {
+      _minZoomLevel = await _controller!.getMinZoomLevel();
+      _maxZoomLevel = await _controller!.getMaxZoomLevel();
+      _currentZoomLevel = _minZoomLevel;
+    } catch (_) {}
+
+    try {
+      _minExposureOffset = await _controller!.getMinExposureOffset();
+      _maxExposureOffset = await _controller!.getMaxExposureOffset();
+      _currentExposureOffset = 0.0;
+    } catch (_) {}
+
+    _currentFlashMode = FlashMode.off;
+    try {
+      await _controller!.setFlashMode(_currentFlashMode);
+    } catch (_) {}
   }
 
   Future<void> switchCamera() async {
@@ -41,7 +80,58 @@ class CameraService {
     await _initController(_cameras[_selectedCameraIdx]);
   }
 
-  Future<EvidenceCaptureModel> capturePhoto() async {
+  Future<void> toggleFlashMode() async {
+    if (!isInitialized) return;
+    switch (_currentFlashMode) {
+      case FlashMode.off:
+        _currentFlashMode = FlashMode.auto;
+        break;
+      case FlashMode.auto:
+        _currentFlashMode = FlashMode.always;
+        break;
+      case FlashMode.always:
+        _currentFlashMode = FlashMode.torch;
+        break;
+      case FlashMode.torch:
+        _currentFlashMode = FlashMode.off;
+        break;
+    }
+    try {
+      await _controller!.setFlashMode(_currentFlashMode);
+    } catch (_) {}
+  }
+
+  Future<void> setZoomLevel(double zoom) async {
+    if (!isInitialized) return;
+    final clampedZoom = zoom.clamp(_minZoomLevel, _maxZoomLevel);
+    _currentZoomLevel = clampedZoom;
+    try {
+      await _controller!.setZoomLevel(clampedZoom);
+    } catch (_) {}
+  }
+
+  Future<void> setExposureOffset(double offset) async {
+    if (!isInitialized) return;
+    final clampedOffset = offset.clamp(_minExposureOffset, _maxExposureOffset);
+    _currentExposureOffset = clampedOffset;
+    try {
+      await _controller!.setExposureOffset(clampedOffset);
+    } catch (_) {}
+  }
+
+  Future<void> setTapToFocus(Offset point) async {
+    if (!isInitialized) return;
+    try {
+      await _controller!.setFocusPoint(point);
+      await _controller!.setExposurePoint(point);
+    } catch (_) {}
+  }
+
+  /// Task 2: Immediate Local File AES Encryption after capture.
+  Future<EvidenceCaptureModel> capturePhoto({
+    required String sessionId,
+    required int batchIndex,
+  }) async {
     if (!isInitialized) throw Exception('Camera not initialized.');
 
     final XFile xFile = await _controller!.takePicture();
@@ -50,12 +140,24 @@ class CameraService {
     final locationPoint = await _locationService.getCurrentLocation();
     final locationStatus = locationPoint != null ? 'RECORDED' : 'UNAVAILABLE';
 
+    // Calculate original SHA-256 BEFORE encryption
     final clientHash = await HashService.calculateSha256(xFile.path);
     final file = File(xFile.path);
     final fileSize = await file.length();
 
+    // Task 9: Collect rich metadata
+    final metadata = await MetadataService.collectMetadata(
+      cameraResolution: 'High (1080p)',
+      flashStatus: _currentFlashMode.name,
+      captureMode: 'PHOTO',
+    );
+
+    // Task 2: AES-256 Encrypt temporary file immediately & delete raw
+    final encryptedPath = await EncryptionService.encryptTempFile(xFile.path);
+
     return EvidenceCaptureModel(
-      filePath: xFile.path,
+      filePath: xFile.path, // Original path (shredded)
+      encryptedFilePath: encryptedPath, // Local AES encrypted file path (.enc)
       fileName: 'PHOTO_SEC_${capturedAt.millisecondsSinceEpoch}.jpg',
       fileSize: fileSize,
       captureMode: 'PHOTO',
@@ -63,6 +165,9 @@ class CameraService {
       clientSha256: clientHash,
       locationStatus: locationStatus,
       photoGps: locationPoint,
+      metadata: metadata,
+      sessionId: sessionId,
+      batchIndex: batchIndex,
     );
   }
 
@@ -75,7 +180,10 @@ class CameraService {
     _locationService.startTrailRecording();
   }
 
-  Future<EvidenceCaptureModel> stopVideoRecording() async {
+  Future<EvidenceCaptureModel> stopVideoRecording({
+    required String sessionId,
+    required int batchIndex,
+  }) async {
     if (!isInitialized || !_isRecordingVideo) {
       throw Exception('Video recording is not currently active.');
     }
@@ -89,12 +197,24 @@ class CameraService {
         ? videoEndTime.difference(_videoStartTime!).inSeconds
         : 0;
 
+    // Calculate original SHA-256 BEFORE encryption
     final clientHash = await HashService.calculateSha256(xFile.path);
     final file = File(xFile.path);
     final fileSize = await file.length();
 
+    // Task 9: Collect rich metadata
+    final metadata = await MetadataService.collectMetadata(
+      cameraResolution: 'High (1080p)',
+      flashStatus: _currentFlashMode.name,
+      captureMode: 'VIDEO',
+    );
+
+    // Task 2: AES-256 Encrypt temporary file immediately & delete raw
+    final encryptedPath = await EncryptionService.encryptTempFile(xFile.path);
+
     return EvidenceCaptureModel(
       filePath: xFile.path,
+      encryptedFilePath: encryptedPath,
       fileName: 'VIDEO_SEC_${videoEndTime.millisecondsSinceEpoch}.mp4',
       fileSize: fileSize,
       captureMode: 'VIDEO',
@@ -105,6 +225,9 @@ class CameraService {
       clientSha256: clientHash,
       locationStatus: trail.isNotEmpty ? 'RECORDED' : 'UNAVAILABLE',
       videoGpsTrail: trail,
+      metadata: metadata,
+      sessionId: sessionId,
+      batchIndex: batchIndex,
     );
   }
 

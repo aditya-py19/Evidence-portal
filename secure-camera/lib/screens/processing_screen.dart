@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import '../models/case_model.dart';
 import '../models/evidence_capture_model.dart';
-import '../services/api_service.dart';
+import '../services/upload_manager.dart';
 import 'success_screen.dart';
 
 class ProcessingScreen extends StatefulWidget {
   final CaseModel? selectedCase;
-  final EvidenceCaptureModel capture;
+  final EvidenceCaptureModel? capture;
+  final List<EvidenceCaptureModel>? captures;
 
   const ProcessingScreen({
     Key? key,
     this.selectedCase,
-    required this.capture,
+    this.capture,
+    this.captures,
   }) : super(key: key);
 
   @override
@@ -19,45 +21,75 @@ class ProcessingScreen extends StatefulWidget {
 }
 
 class _ProcessingScreenState extends State<ProcessingScreen> {
-  final ApiService _apiService = ApiService();
+  final UploadManager _uploadManager = UploadManager();
 
   int _currentStep = 0;
   String? _errorMessage;
-  Map<String, dynamic>? _resultData;
+  Map<String, dynamic>? _lastResultData;
+  List<Map<String, dynamic>> _batchResultData = [];
+  late List<EvidenceCaptureModel> _itemsToUpload;
 
   final List<String> _stages = [
-    'Uploading Original Capture Payload',
-    'Verifying Dual SHA-256 Checksum Integrity',
-    'Registering Evidence Record in Forensic Ledger',
-    'Securing Decentralized IPFS Storage',
-    'Running Sightengine AI Forensic Analysis',
-    'Signing Polygon Amoy Blockchain Contract',
-    'Finalizing Evidence Passport & Chain of Custody',
+    'Verifying AES-256 Local Encrypted Storage & SHA Checksum',
+    'Executing Pre-Upload Tamper Check Integrity Verification',
+    'Uploading Sealed Evidence Payload to Ledger Backend',
+    'Verifying Dual SHA-256 Server Hash Matching',
+    'Securing Decentralized Pinata IPFS Storage Pin',
+    'Executing Sightengine AI Forensic Tamper Analysis',
+    'Registering Smart Contract Transaction on Polygon Amoy',
+    'Finalizing Evidence Passport & Auto-Deleting Temporary Files',
   ];
 
   @override
   void initState() {
     super.initState();
+    if (widget.captures != null && widget.captures!.isNotEmpty) {
+      _itemsToUpload = List.from(widget.captures!);
+    } else if (widget.capture != null) {
+      _itemsToUpload = [widget.capture!];
+    } else {
+      _itemsToUpload = [];
+    }
+
     _startRegistration();
   }
 
   Future<void> _startRegistration() async {
-    try {
-      setState(() => _currentStep = 0);
+    if (_itemsToUpload.isEmpty) {
+      setState(() {
+        _errorMessage = 'No evidence items specified for registration.';
+      });
+      return;
+    }
 
-      final result = await _apiService.submitSecureCapture(
-        caseId: widget.selectedCase?.caseId,
-        capture: widget.capture,
-      );
+    try {
+      setState(() {
+        _currentStep = 0;
+        _errorMessage = null;
+      });
+
+      if (_itemsToUpload.length == 1) {
+        final res = await _uploadManager.uploadSingleCapture(
+          selectedCase: widget.selectedCase,
+          capture: _itemsToUpload.first,
+        );
+        _lastResultData = res;
+        _batchResultData = [res];
+      } else {
+        final resList = await _uploadManager.uploadBatchSession(
+          selectedCase: widget.selectedCase,
+          captures: _itemsToUpload,
+        );
+        _batchResultData = resList;
+        _lastResultData = resList.last;
+      }
 
       for (int i = 1; i < _stages.length; i++) {
-        await Future.delayed(const Duration(milliseconds: 400));
+        await Future.delayed(const Duration(milliseconds: 300));
         if (mounted) {
           setState(() => _currentStep = i);
         }
       }
-
-      _resultData = result;
 
       await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
@@ -67,7 +99,9 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
         MaterialPageRoute(
           builder: (context) => SuccessScreen(
             selectedCase: widget.selectedCase,
-            resultData: _resultData!,
+            resultData: _lastResultData!,
+            batchResults: _batchResultData,
+            captures: _itemsToUpload,
           ),
         ),
       );
@@ -103,7 +137,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                       ),
                       const SizedBox(height: 16),
                       const Text(
-                        'Secure Registration Failed',
+                        'Secure Registration Halted',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -111,11 +145,17 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        _errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF991B1B)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          _errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF991B1B),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
@@ -169,11 +209,11 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                             fontFamily: 'monospace',
                             color: Color(0xFF2563EB)),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
 
                       // Stages List Progress
                       Container(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -185,7 +225,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                             final isCurrent = index == _currentStep;
 
                             return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              padding: const EdgeInsets.symmetric(vertical: 6.0),
                               child: Row(
                                 children: [
                                   if (isDone)
@@ -207,7 +247,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                                     child: Text(
                                       _stages[index],
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 11,
                                         fontWeight: isCurrent || isDone
                                             ? FontWeight.bold
                                             : FontWeight.normal,
