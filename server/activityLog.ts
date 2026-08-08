@@ -53,10 +53,17 @@ export const ACTIVITY = {
 } as const
 
 export function getClientIp(req: Request): string {
-  const forwarded = req.header('x-forwarded-for')
-  if (forwarded) return forwarded.split(',')[0]?.trim() ?? '127.0.0.1'
-  const ip = req.socket.remoteAddress ?? '127.0.0.1'
-  return ip === '::1' ? '127.0.0.1' : ip
+  try {
+    const forwarded = req.headers?.['x-forwarded-for']
+    if (forwarded) {
+      const firstIp = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]
+      if (firstIp && firstIp.trim()) return firstIp.trim()
+    }
+    const ip = req.socket?.remoteAddress ?? req.ip ?? '127.0.0.1'
+    return ip === '::1' ? '127.0.0.1' : ip
+  } catch (_) {
+    return '127.0.0.1'
+  }
 }
 
 export async function logActivity(

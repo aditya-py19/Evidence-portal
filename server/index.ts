@@ -66,7 +66,7 @@ function publicUser(user: {
 }
 
 async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
-  const authHeader = req.header('Authorization')
+  const authHeader = req.headers['authorization'] as string | undefined
   const token = authHeader?.replace(/^Bearer\s+/i, '')?.trim()
 
   if (!token) {
@@ -230,7 +230,7 @@ async function registerOrUpdateDevice(user: { id: string; username: string; role
 
 async function createSessionRecord(userId: string, deviceId: string | null, req: Request) {
   const ipAddress = getClientIp(req)
-  const userAgent = req.header('user-agent') ?? 'Secure Cam Client'
+  const userAgent = (req.headers['user-agent'] as string | undefined) ?? 'Secure Cam Client'
   return await prisma.session.create({
     data: {
       userId,
