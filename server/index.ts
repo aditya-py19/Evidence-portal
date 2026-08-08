@@ -2388,7 +2388,7 @@ app.post('/api/evidence/secure-capture', authenticate, upload.single('file'), as
       sha256Verified: true,
       serverSha256,
       clientSha256: clientSha256 || serverSha256,
-      ipfsCid: result.IpfsHash,
+      ipfsCid: ipfsHash,
       blockchainTxId: chainRecord.transactionHash,
     })
   } catch (error) { next(error) }
