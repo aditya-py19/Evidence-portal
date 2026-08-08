@@ -329,7 +329,10 @@ async function loginForPortal(req: Request, res: Response, next: NextFunction, p
     const accessExpiry = rememberMe ? '24h' : '2h'
     const token = jwt.sign({ role: user.role }, jwtSecret, { subject: user.id, expiresIn: accessExpiry })
     return res.json({ token, refreshToken, user: publicUser(user), sessionId: session?.id, deviceId: device?.id })
-  } catch (error) { next(error) }
+  } catch (error: any) {
+    console.error('[CRITICAL LOGIN ERROR]', error)
+    return res.status(500).json({ message: `Backend Login Exception: ${error?.message || error}` })
+  }
 }
 
 app.post('/api/auth/login', rateLimitAuth(5, 15 * 60 * 1000), (req, res, next) => loginForPortal(req, res, next, 'officer'))
